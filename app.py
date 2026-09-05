@@ -33,6 +33,7 @@ st.markdown("""
 ARCHIVO_GUARDADO = "pokedex_save.json"
 
 def cargar_progreso():
+    """Carga el progreso asegurando que si no existe el archivo, todo devuelva ceros absolutos."""
     if os.path.exists(ARCHIVO_GUARDADO):
         try:
             with open(ARCHIVO_GUARDADO, "r", encoding="utf-8") as f:
@@ -42,7 +43,6 @@ def cargar_progreso():
                 racha_max = datos.get("racha_maxima", 0)
                 logros = datos.get("logros", {})
                 
-                # Nuevas estadísticas extendidas
                 aciertos = datos.get("aciertos_totales", 0)
                 fallos = datos.get("fallos_totales", 0)
                 partidas_perdidas = datos.get("partidas_perdidas", 0)
@@ -51,6 +51,7 @@ def cargar_progreso():
                 return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos
         except:
             pass
+    # Valores por defecto estrictos para un jugador nuevo (0%)
     return {}, {}, 0, {}, 0, 0, 0, 0
 
 def guardar_progreso():
@@ -70,7 +71,7 @@ def guardar_progreso():
     except:
         pass
 
-# Inicializar Base de Datos Local en la sesión
+# Inicializar Base de Datos Local en la sesión garantizando ceros si es nueva partida
 if "pokedex_capturados" not in st.session_state:
     pokedex_ini, shinydex_ini, racha_max_ini, logros_ini, aciertos_ini, fallos_ini, perdidas_ini, shinies_vistos_ini = cargar_progreso()
     st.session_state["pokedex_capturados"] = pokedex_ini
@@ -363,13 +364,11 @@ elif opcion_menu == "📊 Estadísticas y Logros":
     
     comprobar_logros()
     
-    # Pestañas limpias para separar Estadísticas de Logros
     pestana_stats, pestana_logros = st.tabs(["📊 Estadísticas Detalladas", "🏅 Trofeos y Logros"])
     
     with pestana_stats:
         st.markdown("### 📈 Resumen de Partidas y Precisión")
         
-        # Cálculo del porcentaje de acierto de forma segura
         total_respuestas = st.session_state["aciertos_totales"] + st.session_state["fallos_totales"]
         porcentaje_acierto = (st.session_state["aciertos_totales"] / total_respuestas * 100) if total_respuestas > 0 else 0.0
         
@@ -415,7 +414,7 @@ elif opcion_menu == "⚙️ Ajustes":
         st.session_state["ultima_notificacion"] = None
         if os.path.exists(ARCHIVO_GUARDADO):
             os.remove(ARCHIVO_GUARDADO)
-        st.success("✅ ¡Progreso reiniciado con éxito y archivo local eliminado!")
+        st.success("✅ ¡Progreso reiniciado al 100% y archivo local eliminado con éxito!")
     st.stop()
 
 # --- PANTALLA DE DERROTA ---
