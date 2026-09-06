@@ -652,7 +652,7 @@ else:
                             st.rerun()
 
     st.markdown("---")
-    if st.button("🏠 Volver al Menú Principal", use_command_width=True if "use_command_width" in locals() else False, use_container_width=True):
+    if st.button("🏠 Volver al Menú Principal", use_container_width=True):
         st.session_state["en_partida"] = False
         st.session_state["derrota"] = False
         st.rerun()
