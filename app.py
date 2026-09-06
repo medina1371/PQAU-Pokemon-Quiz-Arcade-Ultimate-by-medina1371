@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS GLOBALES (DISEÑO MODERNO Y FLUIDO) ---
+# --- ESTILOS CSS GLOBALES (DISEÑO MODERNO, FLUIDO Y ANIMACIONES) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
@@ -30,23 +30,53 @@ st.markdown("""
         color: #555555;
         font-size: 1.05rem;
     }
+    
+    /* Animación Smooth para los botones generales y de opciones */
     div.stButton > button {
         display: block;
         margin: 0 auto;
         border-radius: 12px;
         font-weight: 600;
-        transition: all 0.2s ease-in-out;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
     }
+    div.stButton > button:active {
+        transform: translateY(1px) scale(0.98);
+    }
+
+    /* Animaciones de Transición para Aciertos y Fallos */
+    @keyframes pulse-success {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+        70% { transform: scale(1.03); box-shadow: 0 0 0 15px rgba(46, 204, 113, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+    }
+    @keyframes shake-error {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-6px); }
+        40%, 80% { transform: translateX(6px); }
+    }
+
+    .anim-success {
+        animation: pulse-success 0.4s ease-in-out;
+        border: 2px solid #2ecc71 !important;
+        border-radius: 16px;
+    }
+    .anim-error {
+        animation: shake-error 0.4s ease-in-out;
+        border: 2px solid #e74c3c !important;
+        border-radius: 16px;
+    }
+
     .pokemon-card {
         background: #ffffff;
         border: 1px solid #eaeaea;
         padding: 15px;
         border-radius: 16px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -111,10 +141,11 @@ if "generaciones_permitidas" not in st.session_state: st.session_state["generaci
 if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
 
-# Estados para el Reto Regional
+# Estados para el Reto Regional y Animaciones visuales temporales
 if "reto_activo" not in st.session_state: st.session_state["reto_activo"] = False
 if "reto_region" not in st.session_state: st.session_state["reto_region"] = None
 if "reto_adivinados" not in st.session_state: st.session_state["reto_adivinados"] = set()
+if "animacion_clase" not in st.session_state: st.session_state["animacion_clase"] = ""
 
 def agregar_notificacion(texto, tipo="success"):
     st.session_state["ultima_notificacion"] = {"texto": texto, "tipo": tipo}
@@ -279,8 +310,7 @@ def obtener_pregunta_tipos(min_id: int, max_id: int):
     return None
 
 # --- MENÚ LATERAL ---
-st.sidebar.title("🧭 Menú Principal 🎒")
-opcion_menu = st.sidebar.radio("Ir a:", ["🎮 Jugar Partida", "🏆 Reto Regional (Name All)", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas y Logros", "⚙️ Ajustes"])
+opcion_menu = st.sidebar.radio("🧭 Menú Principal 🎒", ["🎮 Jugar Partida", "🏆 Reto Regional (Name All)", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas y Logros", "⚙️ Ajustes"])
 
 # --- SECCIÓN POKÉDEX ---
 if opcion_menu == "📖 Pokédex":
@@ -337,7 +367,7 @@ elif opcion_menu == "✨ ShinyDex":
         st.info("🍀 Todavía no te ha salido ningún Shiny (5% de probabilidad). ¡Sigue probando!")
     st.stop()
 
-# --- NUEVO MINIJUEGO: RETO REGIONAL (NAME ALL POKEMON) ---
+# --- RETO REGIONAL ---
 elif opcion_menu == "🏆 Reto Regional (Name All)":
     st.markdown("<h2 class='centered-title'>🏆 El Reto Regional (Name All) ⏱️</h2>", unsafe_allow_html=True)
     st.markdown("<p class='centered-text'>¡Escribe los nombres de todos los Pokémon de la región elegida! Se irán descubriendo en la cuadrícula.</p>", unsafe_allow_html=True)
@@ -358,11 +388,9 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
         
         st.metric(label=f"📊 Progreso en {GENERACIONES[reg_id]['nombre']}", value=f"{adivinados} / {total_reg}")
         
-        # Caja para escribir Pokémon
         nombre_input = st.text_input("Escribe el nombre de un Pokémon:", key="input_reto_poke", placeholder="Ej: Pikachu, Charizard...").strip().title()
         
         if nombre_input:
-            # Buscar si coincide con alguno de la región
             encontrado_id = None
             for pid in range(rango_reg[0], rango_reg[1] + 1):
                 nombre_real = obtener_nombre_por_id(pid)
@@ -372,7 +400,6 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
             
             if encontrado_id and encontrado_id not in st.session_state["reto_adivinados"]:
                 st.session_state["reto_adivinados"].add(encontrado_id)
-                # También se añade a la Pokédex global
                 st.session_state["pokedex_capturados"][encontrado_id] = {"nombre": obtener_nombre_por_id(encontrado_id), "gen": reg_id}
                 guardar_progreso()
                 st.success(f"🎉 ¡Correcto! Has descubierto a {obtener_nombre_por_id(encontrado_id)}")
@@ -381,7 +408,6 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
                 st.warning("⚠️ ¡Ya habías adivinado ese Pokémon!")
 
         st.markdown("### 🎴 Cuadrícula de Descubrimientos:")
-        # Mostrar grilla de la región
         cols_grilla = st.columns(5)
         for idx, pid in enumerate(range(rango_reg[0], rango_reg[1] + 1)):
             col = cols_grilla[idx % 5]
@@ -509,7 +535,7 @@ if not st.session_state["en_partida"]:
         st.rerun()
 
 else:
-    # --- PARTIDA ACTIVA ---
+    # --- PARTIDA ACTIVA CON TRANSICIONES SMOOTH DE ACIERTO/FALLO ---
     st.markdown("<h2 class='centered-title'>🎯 Partida en Curso 🕹️</h2>", unsafe_allow_html=True)
     
     if st.session_state["ultima_notificacion"]:
@@ -527,7 +553,13 @@ else:
     modo = st.session_state["modo_seleccionado"]
     rango = st.session_state["rango_seleccionado"]
     
-    # --- MODO 1: ADIVINA NOMBRE (ICONOS GRANDES Y VISIBLES) ---
+    # Contenedor dinámico envuelto con la clase de animación guardada (pulso de acierto o sacudida de error)
+    clase_anim = st.session_state.get("animacion_clase", "")
+    st.markdown(f'<div class="{clase_anim}">', unsafe_allow_html=True)
+    # Limpiamos la animación inmediatamente para que no se repita en la siguiente interacción pasiva
+    st.session_state["animacion_clase"] = ""
+    
+    # --- MODO 1: ADIVINA NOMBRE ---
     if modo == "🏷️ Adivina Nombre":
         poke = st.session_state.get("pokemon_actual")
         if poke:
@@ -539,7 +571,6 @@ else:
                 
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                # Icono optimizado y más grande
                 st.image(poke["imagen"], width=260)
                 
             st.markdown("<h4 class='centered-title'>¿Cuál de estos Pokémon es el correcto?</h4>", unsafe_allow_html=True)
@@ -558,6 +589,7 @@ else:
                                 st.session_state["racha_maxima"] = st.session_state["racha"]
                             guardar_progreso()
                             agregar_notificacion(f"¡Correcto! Era {poke['nombre']}", "success")
+                            st.session_state["animacion_clase"] = "anim-success"
                             st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
                             st.rerun()
                         else:
@@ -565,6 +597,7 @@ else:
                             st.session_state["partidas_perdidas"] += 1
                             guardar_progreso()
                             agregar_notificacion("¡Fallaste! Fin de la partida.", "error")
+                            st.session_state["animacion_clase"] = "anim-error"
                             st.session_state["ultimo_pokemon_fallado"] = poke
                             st.session_state["derrota"] = True
                             st.rerun()
@@ -600,6 +633,7 @@ else:
                                     st.session_state["racha_maxima"] = st.session_state["racha"]
                                 guardar_progreso()
                                 agregar_notificacion(f"¡Correcto! Gen {poke['gen']}", "success")
+                                st.session_state["animacion_clase"] = "anim-success"
                                 st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
                                 st.rerun()
                             else:
@@ -607,6 +641,7 @@ else:
                                 st.session_state["partidas_perdidas"] += 1
                                 guardar_progreso()
                                 agregar_notificacion("¡Fallaste!", "error")
+                                st.session_state["animacion_clase"] = "anim-error"
                                 st.session_state["ultimo_pokemon_fallado"] = poke
                                 st.session_state["derrota"] = True
                                 st.rerun()
@@ -638,6 +673,7 @@ else:
                                 st.session_state["racha_maxima"] = st.session_state["racha"]
                             guardar_progreso()
                             agregar_notificacion(f"¡Correcto! {pregunta['correcto']}", "success")
+                            st.session_state["animacion_clase"] = "anim-success"
                             st.session_state["pregunta_tipos"] = obtener_pregunta_tipos(rango[0], rango[1])
                             st.rerun()
                         else:
@@ -648,9 +684,11 @@ else:
                             pil_fail = Image.open(io.BytesIO(requests.get(res_fail["sprites"]["front_default"]).content)).convert("RGBA") if res_fail else None
                             st.session_state["ultimo_pokemon_fallado"] = {"id": opc["id"], "nombre": opc["nombre"], "imagen": pil_fail, "gen": 1}
                             agregar_notificacion("¡Fallaste!", "error")
+                            st.session_state["animacion_clase"] = "anim-error"
                             st.session_state["derrota"] = True
                             st.rerun()
 
+    st.markdown('</div>', unsafe_allow_html=True) # Cierre del contenedor animado
     st.markdown("---")
     if st.button("🏠 Volver al Menú Principal", use_container_width=True):
         st.session_state["en_partida"] = False
