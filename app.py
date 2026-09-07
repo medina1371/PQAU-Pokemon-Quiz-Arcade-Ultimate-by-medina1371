@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS GLOBALES (GLASSMORPHISM Y ANIMACIONES FLUIDAS) ---
+# --- ESTILOS CSS LIMPIOS Y SEGUROS (GLASSMORPHISM ESTABLE) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
@@ -21,7 +21,7 @@ st.markdown("""
         font-family: 'Poppins', sans-serif;
     }
     
-    /* Fondo general con un tono sutil */
+    /* Fondo general moderno */
     .stApp {
         background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
     }
@@ -38,31 +38,16 @@ st.markdown("""
         font-size: 1.05rem;
     }
     
-    /* Efecto Glassmorphism para Tarjetas y Contenedores */
-    .glass-card, div.stButton > button {
-        background: rgba(255, 255, 255, 0.8) !important;
+    /* Efecto Glassmorphism controlado para contenedores clave */
+    .glass-container {
+        background: rgba(255, 255, 255, 0.75);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.4) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
-    }
-
-    /* Animación Smooth para los botones de opciones */
-    div.stButton > button {
-        display: block;
-        margin: 0 auto;
-        border-radius: 14px;
-        font-weight: 600;
-        color: #2c3e50;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    div.stButton > button:hover {
-        transform: translateY(-3px) scale(1.02);
-        background: rgba(255, 255, 255, 0.95) !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    }
-    div.stButton > button:active {
-        transform: translateY(1px) scale(0.98);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        margin-bottom: 15px;
     }
 
     /* Animaciones de Transición para Aciertos y Fallos */
@@ -79,13 +64,9 @@ st.markdown("""
 
     .anim-success {
         animation: pulse-success 0.4s ease-in-out;
-        border: 2px solid #2ecc71 !important;
-        border-radius: 20px;
     }
     .anim-error {
         animation: shake-error 0.4s ease-in-out;
-        border: 2px solid #e74c3c !important;
-        border-radius: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -242,11 +223,9 @@ def obtener_nombre_por_id(poke_id: int):
     return f"Pokémon #{poke_id}"
 
 def obtener_pokemon_por_rango(min_id: int, max_id: int):
-    # Si tenemos un Pokémon precargado en segundo plano, lo devolvemos inmediatamente para rendimiento instantáneo
     if st.session_state["siguiente_pokemon_cache"] is not None:
         poke_cache = st.session_state["siguiente_pokemon_cache"]
         st.session_state["siguiente_pokemon_cache"] = None
-        # Disparamos de nuevo la precarga en background para el próximo turno
         precargar_siguiente_pokemon(min_id, max_id)
         return poke_cache
 
@@ -291,14 +270,12 @@ def obtener_pokemon_por_rango(min_id: int, max_id: int):
             "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones
         }
         
-        # Precargar el siguiente en background tras la ejecución actual
         precargar_siguiente_pokemon(min_id, max_id)
         return resultado
     except Exception:
         return None
 
 def precargar_siguiente_pokemon(min_id: int, max_id: int):
-    """Función de prefetching (precarga inteligente) para cero lag."""
     try:
         disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
         if not disponibles:
@@ -474,7 +451,7 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
                     st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=70)
                     st.caption(f"#{pid}\n{obtener_nombre_por_id(pid)}")
                 else:
-                    st.markdown(f"<div style='text-align:center; background:rgba(255,255,255,0.5); backdrop-filter:blur(5px); padding:15px; border-radius:12px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.3);'><b>#{pid}</b><br>❓</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='glass-container' style='text-align:center; padding:10px; margin-bottom:10px;'><b>#{pid}</b><br>❓</div>", unsafe_allow_html=True)
                     
         st.markdown("---")
         if st.button("🚪 Abandonar Reto", use_container_width=True):
@@ -595,7 +572,7 @@ if not st.session_state["en_partida"]:
         st.rerun()
 
 else:
-    # --- PARTIDA ACTIVA CON VIDRIO ESMERILADO Y RENDIMIENTO OPTIMIZADO ---
+    # --- PARTIDA ACTIVA CON CONTENEDOR GLASSMORPHISM ---
     st.markdown("<h2 class='centered-title'>🎯 Partida en Curso 🕹️</h2>", unsafe_allow_html=True)
     
     if st.session_state["ultima_notificacion"]:
@@ -614,7 +591,7 @@ else:
     rango = st.session_state["rango_seleccionado"]
     
     clase_anim = st.session_state.get("animacion_clase", "")
-    st.markdown(f'<div class="{clase_anim}">', unsafe_allow_html=True)
+    st.markdown(f'<div class="glass-container {clase_anim}">', unsafe_allow_html=True)
     st.session_state["animacion_clase"] = ""
     
     # --- MODO 1: ADIVINA NOMBRE ---
