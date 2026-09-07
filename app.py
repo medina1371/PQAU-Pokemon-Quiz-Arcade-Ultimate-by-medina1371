@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS GLOBALES (DISEÑO MODERNO, FLUIDO Y ANIMACIONES) ---
+# --- ESTILOS CSS GLOBALES (GLASSMORPHISM Y ANIMACIONES FLUIDAS) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
@@ -20,10 +20,17 @@ st.markdown("""
     html, body, [class*="css"] {
         font-family: 'Poppins', sans-serif;
     }
+    
+    /* Fondo general con un tono sutil */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+    }
+
     .centered-title {
         text-align: center;
         font-weight: 700;
         letter-spacing: -0.5px;
+        color: #1a1a1a;
     }
     .centered-text {
         text-align: center;
@@ -31,17 +38,28 @@ st.markdown("""
         font-size: 1.05rem;
     }
     
-    /* Animación Smooth para los botones generales y de opciones */
+    /* Efecto Glassmorphism para Tarjetas y Contenedores */
+    .glass-card, div.stButton > button {
+        background: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.4) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+    }
+
+    /* Animación Smooth para los botones de opciones */
     div.stButton > button {
         display: block;
         margin: 0 auto;
-        border-radius: 12px;
+        border-radius: 14px;
         font-weight: 600;
+        color: #2c3e50;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     div.stButton > button:hover {
         transform: translateY(-3px) scale(1.02);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        background: rgba(255, 255, 255, 0.95) !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
     div.stButton > button:active {
         transform: translateY(1px) scale(0.98);
@@ -50,7 +68,7 @@ st.markdown("""
     /* Animaciones de Transición para Aciertos y Fallos */
     @keyframes pulse-success {
         0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
-        70% { transform: scale(1.03); box-shadow: 0 0 0 15px rgba(46, 204, 113, 0); }
+        70% { transform: scale(1.02); box-shadow: 0 0 0 15px rgba(46, 204, 113, 0); }
         100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
     }
     @keyframes shake-error {
@@ -62,21 +80,12 @@ st.markdown("""
     .anim-success {
         animation: pulse-success 0.4s ease-in-out;
         border: 2px solid #2ecc71 !important;
-        border-radius: 16px;
+        border-radius: 20px;
     }
     .anim-error {
         animation: shake-error 0.4s ease-in-out;
         border: 2px solid #e74c3c !important;
-        border-radius: 16px;
-    }
-
-    .pokemon-card {
-        background: #ffffff;
-        border: 1px solid #eaeaea;
-        padding: 15px;
-        border-radius: 16px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        transition: all 0.3s ease;
+        border-radius: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -145,6 +154,7 @@ if "reto_activo" not in st.session_state: st.session_state["reto_activo"] = Fals
 if "reto_region" not in st.session_state: st.session_state["reto_region"] = None
 if "reto_adivinados" not in st.session_state: st.session_state["reto_adivinados"] = set()
 if "animacion_clase" not in st.session_state: st.session_state["animacion_clase"] = ""
+if "siguiente_pokemon_cache" not in st.session_state: st.session_state["siguiente_pokemon_cache"] = None
 
 def agregar_notificacion(texto, tipo="success"):
     st.session_state["ultima_notificacion"] = {"texto": texto, "tipo": tipo}
@@ -203,6 +213,7 @@ def limpiar_nombre_pokemon(nombre_api: str) -> str:
     }
     return reemplazos.get(nombre_api.replace("-", " ").title(), nombre)
 
+# --- OPTIMIZACIÓN: CACHÉ AVANZADA DE DATOS E IMÁGENES ---
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_especie(poke_id: int):
     try:
@@ -217,6 +228,13 @@ def obtener_datos_pokemon(poke_id: int):
     except:
         return None
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def descargar_imagen_bytes(url: str):
+    try:
+        return requests.get(url, timeout=2).content
+    except:
+        return None
+
 def obtener_nombre_por_id(poke_id: int):
     res = obtener_datos_especie(poke_id)
     if res:
@@ -224,6 +242,14 @@ def obtener_nombre_por_id(poke_id: int):
     return f"Pokémon #{poke_id}"
 
 def obtener_pokemon_por_rango(min_id: int, max_id: int):
+    # Si tenemos un Pokémon precargado en segundo plano, lo devolvemos inmediatamente para rendimiento instantáneo
+    if st.session_state["siguiente_pokemon_cache"] is not None:
+        poke_cache = st.session_state["siguiente_pokemon_cache"]
+        st.session_state["siguiente_pokemon_cache"] = None
+        # Disparamos de nuevo la precarga en background para el próximo turno
+        precargar_siguiente_pokemon(min_id, max_id)
+        return poke_cache
+
     disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
     if not disponibles:
         st.session_state["vistos_partida"].clear()
@@ -252,20 +278,54 @@ def obtener_pokemon_por_rango(min_id: int, max_id: int):
             st.session_state["shinies_vistos"] += 1
             guardar_progreso()
             
-        img_data = requests.get(img_url, timeout=2).content
-        pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA")
+        img_data = descargar_imagen_bytes(img_url)
+        pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
         
         ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
         nombres_erroneos = [obtener_nombre_por_id(i) for i in ids_erroneos]
         opciones = nombres_erroneos + [nombre]
         random.shuffle(opciones)
         
-        return {
+        resultado = {
             "id": poke_id, "nombre": nombre, "gen": gen,
             "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones
         }
+        
+        # Precargar el siguiente en background tras la ejecución actual
+        precargar_siguiente_pokemon(min_id, max_id)
+        return resultado
     except Exception:
         return None
+
+def precargar_siguiente_pokemon(min_id: int, max_id: int):
+    """Función de prefetching (precarga inteligente) para cero lag."""
+    try:
+        disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
+        if not disponibles:
+            disponibles = list(range(min_id, max_id + 1))
+        poke_id = random.choice(disponibles)
+        
+        res_species = obtener_datos_especie(poke_id)
+        res_poke = obtener_datos_pokemon(poke_id)
+        if res_species and res_poke:
+            nombre = limpiar_nombre_pokemon(res_species["name"])
+            gen = int(res_species["generation"]["url"].split("/")[-2])
+            tipos = [t["type"]["name"] for t in res_poke["types"]]
+            es_shiny = random.random() < 0.05
+            img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
+            img_data = descargar_imagen_bytes(img_url) if img_url else None
+            pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
+            
+            ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
+            opciones = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
+            random.shuffle(opciones)
+            
+            st.session_state["siguiente_pokemon_cache"] = {
+                "id": poke_id, "nombre": nombre, "gen": gen,
+                "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones
+            }
+    except:
+        pass
 
 def obtener_pregunta_tipos(min_id: int, max_id: int):
     intentos = 0
@@ -365,7 +425,7 @@ elif opcion_menu == "✨ ShinyDex":
         st.info("🍀 Todavía no te ha salido ningún Shiny (5% de probabilidad). ¡Sigue probando!")
     st.stop()
 
-# --- RETO REGIONAL CORREGIDO ---
+# --- RETO REGIONAL ---
 elif opcion_menu == "🏆 Reto Regional (Name All)":
     st.markdown("<h2 class='centered-title'>🏆 El Reto Regional (Name All) ⏱️</h2>", unsafe_allow_html=True)
     st.markdown("<p class='centered-text'>¡Escribe los nombres de todos los Pokémon de la región elegida! Se irán descubriendo en la cuadrícula.</p>", unsafe_allow_html=True)
@@ -414,7 +474,7 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
                     st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=70)
                     st.caption(f"#{pid}\n{obtener_nombre_por_id(pid)}")
                 else:
-                    st.markdown(f"<div style='text-align:center; background:#f0f2f6; padding:15px; border-radius:10px; margin-bottom:10px;'><b>#{pid}</b><br>❓</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; background:rgba(255,255,255,0.5); backdrop-filter:blur(5px); padding:15px; border-radius:12px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.3);'><b>#{pid}</b><br>❓</div>", unsafe_allow_html=True)
                     
         st.markdown("---")
         if st.button("🚪 Abandonar Reto", use_container_width=True):
@@ -486,6 +546,7 @@ if st.session_state["derrota"]:
             st.session_state["puntos"] = 0
             st.session_state["racha"] = 0
             st.session_state["vistos_partida"].clear()
+            st.session_state["siguiente_pokemon_cache"] = None
             rango = st.session_state["rango_seleccionado"]
             st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
             st.rerun()
@@ -510,6 +571,7 @@ if not st.session_state["en_partida"]:
         st.session_state["puntos"] = 0
         st.session_state["racha"] = 0
         st.session_state["vistos_partida"].clear()
+        st.session_state["siguiente_pokemon_cache"] = None
         st.session_state["modo_seleccionado"] = modo_juego
         
         if filtro_gen == "🔴 Clásicas (Gen 1 - 3)":
@@ -533,7 +595,7 @@ if not st.session_state["en_partida"]:
         st.rerun()
 
 else:
-    # --- PARTIDA ACTIVA CON TRANSICIONES SMOOTH DE ACIERTO/FALLO ---
+    # --- PARTIDA ACTIVA CON VIDRIO ESMERILADO Y RENDIMIENTO OPTIMIZADO ---
     st.markdown("<h2 class='centered-title'>🎯 Partida en Curso 🕹️</h2>", unsafe_allow_html=True)
     
     if st.session_state["ultima_notificacion"]:
