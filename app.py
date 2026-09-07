@@ -141,7 +141,6 @@ if "generaciones_permitidas" not in st.session_state: st.session_state["generaci
 if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
 
-# Estados para el Reto Regional y Animaciones visuales temporales
 if "reto_activo" not in st.session_state: st.session_state["reto_activo"] = False
 if "reto_region" not in st.session_state: st.session_state["reto_region"] = None
 if "reto_adivinados" not in st.session_state: st.session_state["reto_adivinados"] = set()
@@ -150,7 +149,6 @@ if "animacion_clase" not in st.session_state: st.session_state["animacion_clase"
 def agregar_notificacion(texto, tipo="success"):
     st.session_state["ultima_notificacion"] = {"texto": texto, "tipo": tipo}
 
-# --- SISTEMA DE LOGROS ---
 LOGROS_DEF = {
     "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1},
     "coleccionista_20": {"titulo": "📦 Entrenador Novato", "desc": "Registra 20 Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 20},
@@ -367,7 +365,7 @@ elif opcion_menu == "✨ ShinyDex":
         st.info("🍀 Todavía no te ha salido ningún Shiny (5% de probabilidad). ¡Sigue probando!")
     st.stop()
 
-# --- RETO REGIONAL ---
+# --- RETO REGIONAL CORREGIDO ---
 elif opcion_menu == "🏆 Reto Regional (Name All)":
     st.markdown("<h2 class='centered-title'>🏆 El Reto Regional (Name All) ⏱️</h2>", unsafe_allow_html=True)
     st.markdown("<p class='centered-text'>¡Escribe los nombres de todos los Pokémon de la región elegida! Se irán descubriendo en la cuadrícula.</p>", unsafe_allow_html=True)
@@ -553,10 +551,8 @@ else:
     modo = st.session_state["modo_seleccionado"]
     rango = st.session_state["rango_seleccionado"]
     
-    # Contenedor dinámico envuelto con la clase de animación guardada (pulso de acierto o sacudida de error)
     clase_anim = st.session_state.get("animacion_clase", "")
     st.markdown(f'<div class="{clase_anim}">', unsafe_allow_html=True)
-    # Limpiamos la animación inmediatamente para que no se repita en la siguiente interacción pasiva
     st.session_state["animacion_clase"] = ""
     
     # --- MODO 1: ADIVINA NOMBRE ---
@@ -688,7 +684,7 @@ else:
                             st.session_state["derrota"] = True
                             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True) # Cierre del contenedor animado
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown("---")
     if st.button("🏠 Volver al Menú Principal", use_container_width=True):
         st.session_state["en_partida"] = False
