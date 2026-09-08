@@ -303,34 +303,89 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     new_data.append((255, 255, 255, 0))
             pil_img.putdata(new_data)
         
+        # --- NUEVA LÓGICA MODO TIPO: 2 TIPOS Y 4 OPCIONES DE POKÉMON CON ICONOS ---
         if modo == "tipo":
-            todos_tipos = ["normal", "fire", "water", "grass", "electric", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
-            opciones = random.sample([t for t in todos_tipos if t not in tipos], min(3, len(todos_tipos)-len(tipos))) + [tipos[0]]
-            random.shuffle(opciones)
-            opciones = [o.capitalize() for o in opciones]
-            respuesta_correcta = tipos[0].capitalize()
+            # Buscamos un Pokémon que tenga exactamente 2 tipos para que el reto sea dinámico
+            intentos_bucle = 0
+            while len(tipos) < 2 and intentos_bucle < 15:
+                intentos_bucle += 1
+                poke_id = random.randint(min_id, max_id)
+                res_species = obtener_datos_especie(poke_id)
+                res_poke = obtener_datos_pokemon(poke_id)
+                if res_species and res_poke:
+                    nombre = limpiar_nombre_pokemon(res_species["name"])
+                    gen = int(res_species["generation"]["url"].split("/")[-2])
+                    tipos = [t["type"]["name"] for t in res_poke["types"]]
+            
+            # Si tras los intentos sigue teniendo 1 solo tipo, lo manejamos igual
+            tipos_capitalizados = [t.capitalize() for t in tipos]
+            texto_tipos = " / ".join(tipos_capitalizados)
+            
+            # Generamos 3 Pokémon erróneos que NO tengan esa combinación exacta
+            ids_erroneos = []
+            while len(ids_erroneos) < 3:
+                rid = random.randint(min_id, max_id)
+                if rid != poke_id and rid not in ids_erroneos:
+                    ids_erroneos.append(rid)
+            
+            opciones_data = []
+            # Añadimos el correcto
+            opciones_data.append({
+                "nombre": nombre,
+                "id": poke_id,
+                "es_correcto": True,
+                "imagen_url": res_poke["sprites"]["front_default"]
+            })
+            
+            # Añadimos los 3 incorrectos
+            for eid in ids_erroneos:
+                r_spec_err = obtener_datos_especie(eid)
+                r_poke_err = obtener_datos_pokemon(eid)
+                if r_spec_err and r_poke_err:
+                    e_nombre = limpiar_nombre_pokemon(r_spec_err["name"])
+                    e_img = r_poke_err["sprites"]["front_default"]
+                    opciones_data.append({
+                        "nombre": e_nombre,
+                        "id": eid,
+                        "es_correcto": False,
+                        "imagen_url": e_img
+                    })
+            
+            random.shuffle(opciones_data)
+            
+            return {
+                "id": poke_id, 
+                "nombre": nombre, 
+                "gen": gen, 
+                "tipos": tipos_capitalizados, 
+                "texto_tipos": texto_tipos,
+                "shiny": es_shiny, 
+                "imagen": pil_img, 
+                "opciones_tipo": opciones_data, 
+                "respuesta_correcta": nombre
+            }
+
         elif modo == "generacion":
             opciones = ["Generación 1", "Generación 2", "Generación 3", "Generación 4", "Generación 5", "Generación 6", "Generación 7", "Generación 8", "Generación 9"]
             respuesta_correcta = f"Generación {gen}"
             erroneas = [o for o in opciones if o != respuesta_correcta]
             opciones = random.sample(erroneas, min(3, len(erroneas))) + [respuesta_correcta]
             random.shuffle(opciones)
+            opciones_data = [{"nombre": op} for op in opciones]
+            return {
+                "id": poke_id, "nombre": nombre, "gen": gen, "tipos": [t.capitalize() for t in tipos], 
+                "shiny": es_shiny, "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": respuesta_correcta
+            }
         else:
             ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
-            opciones = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
-            random.shuffle(opciones)
+            nombres_opc = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
+            random.shuffle(nombres_opc)
+            opciones_data = [{"nombre": op} for op in nombres_opc]
             respuesta_correcta = nombre
-
-        return {
-            "id": poke_id, 
-            "nombre": nombre, 
-            "gen": gen, 
-            "tipos": [t.capitalize() for t in tipos], 
-            "shiny": es_shiny, 
-            "imagen": pil_img, 
-            "opciones": opciones, 
-            "respuesta_correcta": respuesta_correcta
-        }
+            return {
+                "id": poke_id, "nombre": nombre, "gen": gen, "tipos": [t.capitalize() for t in tipos], 
+                "shiny": es_shiny, "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": respuesta_correcta
+            }
     except: return None
 
 # --- CONSOLA SECRETA ACTIVADA CON TECLA Q ---
@@ -462,8 +517,8 @@ with tab_jugar:
         with col_m3:
             st.markdown("""
             <div class="minigame-card">
-                <h3>🔥 Adivina el Tipo</h3>
-                <p style="color:#aaa; font-size:13px; min-height:40px;">Identifica el tipo principal del Pokémon.</p>
+                <h3>🔥 Adivina la Combinación</h3>
+                <p style="color:#aaa; font-size:13px; min-height:40px;">Dado 2 tipos, elige el Pokémon correcto.</p>
             </div>
             """, unsafe_allow_html=True)
             if st.button("⚡ Jugar Tipos", key="btn_m_tipo", use_container_width=True):
@@ -498,7 +553,7 @@ with tab_jugar:
         titulos_modos = {
             "clasico": "🎯 Modo Clásico",
             "sombra": "🌑 ¿Quién es ese Pokémon?",
-            "tipo": "🔥 Adivina el Tipo",
+            "tipo": "🔥 Adivina por Combinación de Tipos",
             "generacion": "📜 Adivina la Generación"
         }
         st.title(titulos_modos.get(modo_actual, "Partida Arcade"))
@@ -530,42 +585,86 @@ with tab_jugar:
                 st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
             guardar_progreso()
 
-            c1, c2, c3 = st.columns([1, 2, 1])
-            with c2:
-                if poke["imagen"]: st.image(poke["imagen"], width=280)
+            # --- RENDERIZADO VISUAL SEGÚN EL MODO ---
+            if modo_actual == "tipo":
+                st.markdown(f"""
+                <div style="background: #1e1e2f; padding: 15px; border-radius: 12px; text-align: center; border: 2px solid #ffcc00; margin-bottom: 20px;">
+                    <h3 style="margin: 0; color: #ffcc00;">¿Qué Pokémon tiene esta combinación de tipos?</h3>
+                    <h2 style="margin: 10px 0 0 0; color: white; letter-spacing: 2px;">⚡ {poke['texto_tipos']} ⚡</h2>
+                </div>
+                """, unsafe_allow_html=True)
                 
-            preguntas = {
-                "clasico": "¿Cuál de estos Pokémon es el correcto?",
-                "sombra": "¿Quién es este Pokémon?",
-                "tipo": f"¿Cuál es el tipo principal de #{poke['id']:03d}?",
-                "generacion": f"¿A qué generación pertenece {poke['nombre']}?"
-            }
-            st.subheader(preguntas.get(modo_actual, "¿Cuál es la respuesta?"))
-            
-            for idx, opc_nombre in enumerate(poke["opciones"]):
-                if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
-                    if opc_nombre == poke["respuesta_correcta"]:
-                        st.session_state["puntos"] += 1
-                        st.session_state["racha"] += 1
-                        st.session_state["aciertos_totales"] += 1
-                        
-                        ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
-                        st.session_state["monedas"] += ganancia_monedas
-                        avanzar_huevos()
-                        
-                        if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                            st.session_state["racha_maxima"] = st.session_state["racha"]
-                        
-                        guardar_progreso()
-                        agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
-                        st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
-                        st.rerun()
-                    else:
-                        st.session_state["fallos_totales"] += 1
-                        guardar_progreso()
-                        st.session_state["ultimo_pokemon_fallado"] = poke
-                        st.session_state["derrota"] = True
-                        st.rerun()
+                # Mostramos 4 opciones de Pokémon, cada una con su icono visual
+                cols_opc = st.columns(2)
+                for idx, opc in enumerate(poke["opciones_tipo"]):
+                    col_target = cols_opc[idx % 2]
+                    with col_target:
+                        st.markdown(f"""
+                        <div style="background: #252538; border-radius: 12px; padding: 10px; text-align: center; border: 1px solid #4a4e69; margin-bottom: 10px;">
+                            <img src="{opc['imagen_url']}" width="90">
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{idx}"):
+                            if opc["es_correcto"]:
+                                st.session_state["puntos"] += 1
+                                st.session_state["racha"] += 1
+                                st.session_state["aciertos_totales"] += 1
+                                
+                                ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
+                                st.session_state["monedas"] += ganancia_monedas
+                                avanzar_huevos()
+                                
+                                if st.session_state["racha"] > st.session_state["racha_maxima"]:
+                                    st.session_state["racha_maxima"] = st.session_state["racha"]
+                                
+                                guardar_progreso()
+                                agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
+                                st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+                                st.rerun()
+                            else:
+                                st.session_state["fallos_totales"] += 1
+                                guardar_progreso()
+                                st.session_state["ultimo_pokemon_fallado"] = poke
+                                st.session_state["derrota"] = True
+                                st.rerun()
+            else:
+                # Modos clásicos de una sola imagen central
+                c1, c2, c3 = st.columns([1, 2, 1])
+                with c2:
+                    if poke["imagen"]: st.image(poke["imagen"], width=280)
+                    
+                preguntas = {
+                    "clasico": "¿Cuál de estos Pokémon es el correcto?",
+                    "sombra": "¿Quién es este Pokémon?",
+                    "generacion": f"¿A qué generación pertenece {poke['nombre']}?"
+                }
+                st.subheader(preguntas.get(modo_actual, "¿Cuál es la respuesta?"))
+                
+                for idx, opc_item in enumerate(poke["opciones"]):
+                    opc_nombre = opc_item["nombre"]
+                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
+                        if opc_nombre == poke["respuesta_correcta"]:
+                            st.session_state["puntos"] += 1
+                            st.session_state["racha"] += 1
+                            st.session_state["aciertos_totales"] += 1
+                            
+                            ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
+                            st.session_state["monedas"] += ganancia_monedas
+                            avanzar_huevos()
+                            
+                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
+                                st.session_state["racha_maxima"] = st.session_state["racha"]
+                            
+                            guardar_progreso()
+                            agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
+                            st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+                            st.rerun()
+                        else:
+                            st.session_state["fallos_totales"] += 1
+                            guardar_progreso()
+                            st.session_state["ultimo_pokemon_fallado"] = poke
+                            st.session_state["derrota"] = True
+                            st.rerun()
 
         st.divider()
         if st.button("🏠 Salir al Menú de Minijuegos", use_container_width=True):
