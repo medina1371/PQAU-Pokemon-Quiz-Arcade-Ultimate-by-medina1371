@@ -282,137 +282,228 @@ def obtener_nombre_por_id(poke_id: int):
     res = obtener_datos_especie(poke_id)
     return limpiar_nombre_pokemon(res["name"]) if res else f"Pokémon #{poke_id}"
 
+def _obtener_imagen_pokemon(res_poke, es_shiny=False):
+    if not res_poke:
+        return None
+    sprites = res_poke.get("sprites", {})
+    img_url = sprites.get("front_shiny") if es_shiny else sprites.get("front_default")
+    if not img_url:
+        img_url = sprites.get("front_default")
+    img_data = descargar_imagen_bytes(img_url)
+    if not img_data:
+        return None
+    try:
+        return Image.open(io.BytesIO(img_data)).convert("RGBA")
+    except (OSError, ValueError):
+        return None
+
+
+def _crear_opciones_nombres(min_id, max_id, poke_id, nombre_correcto, cantidad=4):
+    """Crea opciones únicas por ID y por nombre para evitar botones duplicados."""
+    opciones = [{"nombre": nombre_correcto, "id": poke_id, "es_correcto": True}]
+    ids_usados = {poke_id}
+    nombres_usados = {nombre_correcto.casefold()}
+
+    candidatos = list(range(min_id, max_id + 1))
+    random.shuffle(candidatos)
+
+    for rid in candidatos:
+        if len(opciones) >= cantidad:
+            break
+        if rid in ids_usados:
+            continue
+
+        nombre = obtener_nombre_por_id(rid)
+        clave_nombre = nombre.casefold()
+        if clave_nombre in nombres_usados:
+            continue
+
+        ids_usados.add(rid)
+        nombres_usados.add(clave_nombre)
+        opciones.append({
+            "nombre": nombre,
+            "id": rid,
+            "es_correcto": False
+        })
+
+    if len(opciones) < cantidad:
+        return None
+
+    random.shuffle(opciones)
+    return opciones
+
+
+def _crear_opciones_tipo(min_id, max_id, poke_id, nombre_correcto, combinacion_correcta, cantidad=4):
+    """Crea 4 Pokémon únicos; los 3 incorrectos jamás comparten la combinación de tipos correcta."""
+    opciones = [{
+        "nombre": nombre_correcto,
+        "id": poke_id,
+        "es_correcto": True
+    }]
+    ids_usados = {poke_id}
+    nombres_usados = {nombre_correcto.casefold()}
+
+    candidatos = list(range(min_id, max_id + 1))
+    random.shuffle(candidatos)
+
+    for rid in candidatos:
+        if len(opciones) >= cantidad:
+            break
+        if rid in ids_usados:
+            continue
+
+        r_spec = obtener_datos_especie(rid)
+        r_poke = obtener_datos_pokemon(rid)
+        if not r_spec or not r_poke:
+            continue
+
+        tipos_err = tuple(sorted(t["type"]["name"] for t in r_poke.get("types", [])))
+        if tipos_err == combinacion_correcta:
+            continue
+
+        nombre = limpiar_nombre_pokemon(r_spec["name"])
+        clave_nombre = nombre.casefold()
+        if clave_nombre in nombres_usados:
+            continue
+
+        imagen_url = r_poke.get("sprites", {}).get("front_default")
+        if not imagen_url:
+            continue
+
+        ids_usados.add(rid)
+        nombres_usados.add(clave_nombre)
+        opciones.append({
+            "nombre": nombre,
+            "id": rid,
+            "es_correcto": False,
+            "imagen_url": imagen_url
+        })
+
+    if len(opciones) < cantidad:
+        return None
+
+    # Comprobación final: nunca devolver opciones duplicadas.
+    if len({o["id"] for o in opciones}) != cantidad:
+        return None
+    if len({o["nombre"].casefold() for o in opciones}) != cantidad:
+        return None
+
+    random.shuffle(opciones)
+    return opciones
+
+
 def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
-    disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
+    """Genera una pregunta completa sin reutilizar opciones dentro de la misma pregunta."""
+    if min_id > max_id:
+        return None
+
+    # Elegimos siempre un Pokémon que no haya aparecido en esta partida.
+    disponibles = [
+        i for i in range(min_id, max_id + 1)
+        if i not in st.session_state["vistos_partida"]
+    ]
     if not disponibles:
         st.session_state["vistos_partida"].clear()
         disponibles = list(range(min_id, max_id + 1))
-    poke_id = random.choice(disponibles)
-    st.session_state["vistos_partida"].add(poke_id)
-    
-    try:
-        res_species = obtener_datos_especie(poke_id)
-        res_poke = obtener_datos_pokemon(poke_id)
-        if not res_species or not res_poke: return None
-            
-        nombre = limpiar_nombre_pokemon(res_species["name"])
-        gen = int(res_species["generation"]["url"].split("/")[-2])
-        tipos = [t["type"]["name"] for t in res_poke["types"]]
-        
-        prob_shiny = 0.05
-        es_shiny = random.random() < prob_shiny
 
-        img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
-        if not img_url: img_url = res_poke["sprites"]["front_default"]
-            
-        img_data = descargar_imagen_bytes(img_url)
-        pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
-        
-        if modo == "sombra" and pil_img:
-            data = pil_img.getdata()
-            new_data = []
-            for item in data:
-                if item[3] > 0:
-                    new_data.append((0, 0, 0, item[3]))
-                else:
-                    new_data.append((255, 255, 255, 0))
-            pil_img.putdata(new_data)
-        
-        # --- NUEVA LÓGICA MODO TIPO: 2 TIPOS Y 4 OPCIONES DE POKÉMON CON ICONOS ---
-        if modo == "tipo":
-            # Buscamos un Pokémon con exactamente 2 tipos. Si no encontramos uno, usamos el original.
-            intentos_bucle = 0
-            while len(tipos) != 2 and intentos_bucle < 30:
-                intentos_bucle += 1
-                candidato_id = random.randint(min_id, max_id)
-                candidato_species = obtener_datos_especie(candidato_id)
-                candidato_poke = obtener_datos_pokemon(candidato_id)
-                if not candidato_species or not candidato_poke:
+    # En modo Tipo necesitamos además que el Pokémon tenga exactamente 2 tipos.
+    # Hacemos varios intentos y nunca usamos un Pokémon de 1 tipo como objetivo.
+    candidatos_objetivo = disponibles[:]
+    if modo == "tipo":
+        random.shuffle(candidatos_objetivo)
+    else:
+        random.shuffle(candidatos_objetivo)
+
+    for poke_id in candidatos_objetivo:
+        try:
+            res_species = obtener_datos_especie(poke_id)
+            res_poke = obtener_datos_pokemon(poke_id)
+            if not res_species or not res_poke:
+                continue
+
+            tipos = [t["type"]["name"] for t in res_poke.get("types", [])]
+            if modo == "tipo" and len(tipos) != 2:
+                continue
+
+            nombre = limpiar_nombre_pokemon(res_species["name"])
+            gen = int(res_species["generation"]["url"].split("/")[-2])
+            es_shiny = random.random() < 0.05
+            pil_img = _obtener_imagen_pokemon(res_poke, es_shiny)
+
+            if modo == "sombra" and pil_img:
+                data = pil_img.getdata()
+                new_data = []
+                for item in data:
+                    if item[3] > 0:
+                        new_data.append((0, 0, 0, item[3]))
+                    else:
+                        new_data.append((255, 255, 255, 0))
+                pil_img.putdata(new_data)
+
+            # --- MODO TIPO ---
+            if modo == "tipo":
+                combinacion_correcta = tuple(sorted(tipos))
+                opciones_data = _crear_opciones_tipo(
+                    min_id,
+                    max_id,
+                    poke_id,
+                    nombre,
+                    combinacion_correcta
+                )
+                if opciones_data is None:
                     continue
-                candidato_tipos = [t["type"]["name"] for t in candidato_poke["types"]]
-                if len(candidato_tipos) == 2:
-                    poke_id = candidato_id
-                    res_species = candidato_species
-                    res_poke = candidato_poke
-                    nombre = limpiar_nombre_pokemon(res_species["name"])
-                    gen = int(res_species["generation"]["url"].split("/")[-2])
-                    tipos = candidato_tipos
-                    img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
-                    if not img_url:
-                        img_url = res_poke["sprites"]["front_default"]
-                    img_data = descargar_imagen_bytes(img_url)
-                    pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
-                    break
 
-            tipos_capitalizados = [t.capitalize() for t in tipos]
-            texto_tipos = " / ".join(tipos_capitalizados)
-            combinacion_correcta = tuple(sorted(tipos))
+                st.session_state["vistos_partida"].add(poke_id)
+                tipos_capitalizados = [t.capitalize() for t in tipos]
+                return {
+                    "id": poke_id,
+                    "nombre": nombre,
+                    "gen": gen,
+                    "tipos": tipos_capitalizados,
+                    "texto_tipos": " / ".join(tipos_capitalizados),
+                    "shiny": es_shiny,
+                    "imagen": pil_img,
+                    "opciones_tipo": opciones_data,
+                    "respuesta_correcta": nombre
+                }
 
-            # Generamos 3 Pokémon erróneos cuya combinación NO coincida con la correcta.
-            opciones_data = [{
-                "nombre": nombre,
-                "id": poke_id,
-                "es_correcto": True,
-                "imagen_url": res_poke["sprites"]["front_default"]
-            }]
-            ids_usados = {poke_id}
-            intentos_err = 0
-            while len(opciones_data) < 4 and intentos_err < 100:
-                intentos_err += 1
-                rid = random.randint(min_id, max_id)
-                if rid in ids_usados:
+            # --- MODO GENERACIÓN ---
+            if modo == "generacion":
+                opciones = [f"Generación {i}" for i in range(1, 10)]
+                respuesta_correcta = f"Generación {gen}"
+                erroneas = [o for o in opciones if o != respuesta_correcta]
+                opciones = random.sample(erroneas, 3) + [respuesta_correcta]
+                random.shuffle(opciones)
+                opciones_data = [{"nombre": op} for op in opciones]
+
+            # --- MODO CLÁSICO / SILUETA ---
+            else:
+                opciones_data = _crear_opciones_nombres(
+                    min_id,
+                    max_id,
+                    poke_id,
+                    nombre
+                )
+                if opciones_data is None:
                     continue
-                r_spec_err = obtener_datos_especie(rid)
-                r_poke_err = obtener_datos_pokemon(rid)
-                if not r_spec_err or not r_poke_err:
-                    continue
-                tipos_err = tuple(sorted(t["type"]["name"] for t in r_poke_err["types"]))
-                if tipos_err == combinacion_correcta:
-                    continue
-                ids_usados.add(rid)
-                opciones_data.append({
-                    "nombre": limpiar_nombre_pokemon(r_spec_err["name"]),
-                    "id": rid,
-                    "es_correcto": False,
-                    "imagen_url": r_poke_err["sprites"]["front_default"]
-                })
+                # En estos modos la respuesta siempre es el nombre del Pokémon mostrado.
+                respuesta_correcta = nombre
 
-            random.shuffle(opciones_data)
-
+            st.session_state["vistos_partida"].add(poke_id)
             return {
                 "id": poke_id,
                 "nombre": nombre,
                 "gen": gen,
-                "tipos": tipos_capitalizados,
-                "texto_tipos": texto_tipos,
+                "tipos": [t.capitalize() for t in tipos],
                 "shiny": es_shiny,
                 "imagen": pil_img,
-                "opciones_tipo": opciones_data,
-                "respuesta_correcta": nombre
+                "opciones": opciones_data,
+                "respuesta_correcta": respuesta_correcta
             }
+        except (KeyError, TypeError, ValueError, IndexError, requests.RequestException, OSError):
+            continue
 
-        elif modo == "generacion":
-            opciones = ["Generación 1", "Generación 2", "Generación 3", "Generación 4", "Generación 5", "Generación 6", "Generación 7", "Generación 8", "Generación 9"]
-            respuesta_correcta = f"Generación {gen}"
-            erroneas = [o for o in opciones if o != respuesta_correcta]
-            opciones = random.sample(erroneas, min(3, len(erroneas))) + [respuesta_correcta]
-            random.shuffle(opciones)
-            opciones_data = [{"nombre": op} for op in opciones]
-            return {
-                "id": poke_id, "nombre": nombre, "gen": gen, "tipos": [t.capitalize() for t in tipos], 
-                "shiny": es_shiny, "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": respuesta_correcta
-            }
-        else:
-            ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
-            nombres_opc = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
-            random.shuffle(nombres_opc)
-            opciones_data = [{"nombre": op} for op in nombres_opc]
-            respuesta_correcta = nombre
-            return {
-                "id": poke_id, "nombre": nombre, "gen": gen, "tipos": [t.capitalize() for t in tipos], 
-                "shiny": es_shiny, "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": respuesta_correcta
-            }
-    except: return None
+    return None
 
 # --- CONSOLA SECRETA ACTIVADA CON TECLA Q ---
 if st.session_state["mostrar_consola_trucos"]:
@@ -617,9 +708,19 @@ with tab_jugar:
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Comprobación defensiva: nunca renderizar botones duplicados.
+                opciones_tipo_unicas = []
+                claves_tipo = set()
+                for opc in poke.get("opciones_tipo", []):
+                    clave = (opc.get("id"), opc.get("nombre", "").casefold())
+                    if clave in claves_tipo:
+                        continue
+                    claves_tipo.add(clave)
+                    opciones_tipo_unicas.append(opc)
+
                 # Mostramos 4 opciones de Pokémon, cada una con su icono visual
                 cols_opc = st.columns(2)
-                for idx, opc in enumerate(poke["opciones_tipo"]):
+                for idx, opc in enumerate(opciones_tipo_unicas[:4]):
                     col_target = cols_opc[idx % 2]
                     with col_target:
                         st.markdown(f"""
@@ -666,7 +767,18 @@ with tab_jugar:
                 }
                 st.subheader(preguntas.get(modo_actual, "¿Cuál es la respuesta?"))
                 
-                for idx, opc_item in enumerate(poke["opciones"]):
+                # Comprobación defensiva contra nombres repetidos.
+                opciones_unicas = []
+                nombres_vistos = set()
+                for opc_item in poke.get("opciones", []):
+                    opc_nombre = opc_item.get("nombre", "")
+                    clave_nombre = opc_nombre.casefold()
+                    if clave_nombre in nombres_vistos:
+                        continue
+                    nombres_vistos.add(clave_nombre)
+                    opciones_unicas.append(opc_item)
+
+                for idx, opc_item in enumerate(opciones_unicas[:4]):
                     opc_nombre = opc_item["nombre"]
                     if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
                         if opc_nombre == poke["respuesta_correcta"]:
