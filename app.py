@@ -5,7 +5,7 @@ from PIL import Image, ImageOps
 import io
 import json
 import os
-from datetime import datetime
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Pokémon Quiz Arcade Ultimate ⚡",
@@ -13,7 +13,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS PARA UNA INTERFAZ MODERNA Y TARJETAS ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stApp {
@@ -97,11 +97,12 @@ def cargar_progreso():
                 entrenadores_desbloqueados = datos.get("entrenadores_desbloqueados", ["Rojo"])
                 huevos = datos.get("huevos", [])
                 cartas_coleccion = datos.get("cartas_coleccion", [])
-                companero_id = datos.get("companero_id", 25) # Pikachu por defecto
-                return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id
+                companero_id = datos.get("companero_id", 25)
+                companero_shiny = datos.get("companero_shiny", False)
+                return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny
         except:
             pass
-    return {}, {}, 0, {}, 0, 0, 150, "Rojo", ["Rojo"], [], [], 25
+    return {}, {}, 0, {}, 0, 0, 150, "Rojo", ["Rojo"], [], [], 25, False
 
 def guardar_progreso():
     datos = {
@@ -116,7 +117,8 @@ def guardar_progreso():
         "entrenadores_desbloqueados": st.session_state["entrenadores_desbloqueados"],
         "huevos": st.session_state["huevos"],
         "cartas_coleccion": st.session_state["cartas_coleccion"],
-        "companero_id": st.session_state["companero_id"]
+        "companero_id": st.session_state["companero_id"],
+        "companero_shiny": st.session_state["companero_shiny"]
     }
     try:
         with open(ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
@@ -125,7 +127,7 @@ def guardar_progreso():
         pass
 
 if "pokedex_capturados" not in st.session_state:
-    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_ini = cargar_progreso()
+    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini = cargar_progreso()
     st.session_state["pokedex_capturados"] = p_ini
     st.session_state["shinydex_capturados"] = s_ini
     st.session_state["racha_maxima"] = rm_ini
@@ -137,7 +139,8 @@ if "pokedex_capturados" not in st.session_state:
     st.session_state["entrenadores_desbloqueados"] = ents_ini
     st.session_state["huevos"] = hue_ini
     st.session_state["cartas_coleccion"] = car_ini
-    st.session_state["companero_id"] = comp_ini
+    st.session_state["companero_id"] = comp_id_ini
+    st.session_state["companero_shiny"] = comp_sh_ini
 
 if "racha" not in st.session_state: st.session_state["racha"] = 0
 if "puntos" not in st.session_state: st.session_state["puntos"] = 0
@@ -151,6 +154,28 @@ if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notif
 if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recien_abierta"] = None
 if "mostrar_consola_trucos" not in st.session_state: st.session_state["mostrar_consola_trucos"] = False
 
+# --- DETECTOR DE TECLA "Q" CON JAVASCRIPT ---
+components.html("""
+<script>
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'q' || e.key === 'Q') {
+            // Prevenir si está escribiendo en un input
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            
+            const btn = parent.document.getElementById('hidden_trigger_btn');
+            if (btn) {
+                btn.click();
+            }
+        }
+    });
+</script>
+""", height=0)
+
+# Botón invisible de Streamlit para sincronizar el evento de la tecla Q
+if st.button("TrigQ", key="hidden_trigger_btn", help=None):
+    st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
+    st.rerun()
+
 # --- ENTRENADORES ---
 ENTRENADORES = {
     "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Ganancia estándar", "bonus_monedas": 0},
@@ -160,7 +185,6 @@ ENTRENADORES = {
     "Cintia": {"nombre": "Cintia", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 500, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "+5 Poké-Coins extra por acierto", "bonus_monedas": 5}
 }
 
-# Rangos de Generaciones
 RANGOS_GENERACIONES = {
     "Clásicas (Gen 1-3)": (1, 386),
     "Intermedias (Gen 4-6)": (387, 721),
@@ -256,7 +280,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
         gen = int(res_species["generation"]["url"].split("/")[-2])
         tipos = [t["type"]["name"] for t in res_poke["types"]]
         
-        ent_info = ENTRENADORES.get(st.session_state["entrenador_actual"], ENTRENADORES["Rojo"])
         prob_shiny = 0.05
         es_shiny = random.random() < prob_shiny
 
@@ -266,7 +289,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
         img_data = descargar_imagen_bytes(img_url)
         pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
         
-        # Modo Sombra (Silueta)
         if modo == "sombra" and pil_img:
             data = pil_img.getdata()
             new_data = []
@@ -277,9 +299,7 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     new_data.append((255, 255, 255, 0))
             pil_img.putdata(new_data)
         
-        # Opciones múltiples según el minijuego
         if modo == "tipo":
-            # Opciones de tipos de Pokémon
             todos_tipos = ["normal", "fire", "water", "grass", "electric", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
             opciones = random.sample([t for t in todos_tipos if t not in tipos], min(3, len(todos_tipos)-len(tipos))) + [tipos[0]]
             random.shuffle(opciones)
@@ -288,7 +308,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
         elif modo == "generacion":
             opciones = ["Generación 1", "Generación 2", "Generación 3", "Generación 4", "Generación 5", "Generación 6", "Generación 7", "Generación 8", "Generación 9"]
             respuesta_correcta = f"Generación {gen}"
-            # Mezclar opciones para mostrar 4
             erroneas = [o for o in opciones if o != respuesta_correcta]
             opciones = random.sample(erroneas, min(3, len(erroneas))) + [respuesta_correcta]
             random.shuffle(opciones)
@@ -310,52 +329,36 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
         }
     except: return None
 
-# --- BARRA LATERAL: BOTÓN SECRETO PARA CÓDIGOS Y COMPAÑERO POKÉMON GO ---
-with st.sidebar:
-    st.markdown("### 🎒 Menú de Entrenador")
-    
-    # Pokémon Compañero (Estilo Pokémon GO)
-    comp_id = st.session_state["companero_id"]
-    comp_nombre = obtener_nombre_por_id(comp_id)
-    comp_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{comp_id}.png"
-    
-    st.markdown(f"""
-    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #ffcc00; margin-bottom: 15px;">
-        <p style="margin:0; font-size:12px; color:#ffcc00; font-weight:bold;">🐾 COMPAÑERO POKÉMON GO</p>
-        <img src="{comp_url}" width="70">
-        <h4 style="margin:4px 0 0 0; color:white; font-size:16px;">{comp_nombre}</h4>
+# --- CONSOLA SECRETA ACTIVADA CON TECLA Q ---
+if st.session_state["mostrar_consola_trucos"]:
+    st.markdown("""
+    <div style="background: rgba(0,0,0,0.85); border: 2px solid #ffcc00; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+        <h3 style="color: #ffcc00; margin-top: 0;">💻 Terminal Oculta del Sistema</h3>
+        <p style="color: #fff; font-size: 13px;">Introduce el comando de autorización secreto:</p>
     </div>
     """, unsafe_allow_html=True)
     
-    if st.button("🔄 Cambiar Compañero", use_container_width=True):
-        nuevo_id = random.choice(list(st.session_state["pokedex_capturados"].keys())) if st.session_state["pokedex_capturados"] else 25
-        st.session_state["companero_id"] = nuevo_id
-        guardar_progreso()
-        st.rerun()
-
-    st.divider()
-    
-    # Combinación de teclas / Consola secreta simulada con un botón interactivo
-    if st.button("⌨️ Abrir Consola Secreta (Ctrl+Shift+C)", use_container_width=True, type="secondary"):
-        st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
-        st.rerun()
-
-    if st.session_state["mostrar_consola_trucos"]:
-        st.markdown("---")
-        st.markdown("### 💻 Consola de Trucos")
-        codigo_ingresado = st.text_input("Introduce el código secreto:", type="default", placeholder="ej. popoi")
-        if st.button("Ejecutar Código"):
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        codigo_ingresado = st.text_input("Comando:", type="password", key="input_consola_secreta", label_visibility="collapsed")
+    with col_t2:
+        if st.button("Enviar", use_container_width=True):
+            # Código de acceso integrado de forma discreta
             if codigo_ingresado.strip().lower() == "popoi":
                 st.session_state["monedas"] += 10000
                 guardar_progreso()
-                st.success("🎉 ¡Código canjeado! +10,000 Poké-Coins añadidas.")
+                st.success("✔ Autorización concedida. Transferencia completada.")
                 st.session_state["mostrar_consola_trucos"] = False
                 st.rerun()
             else:
-                st.error("❌ Código incorrecto.")
+                st.error("✘ Código no válido.")
 
-# --- PERFIL DE ENTRENADOR ---
+# --- PERFIL DE ENTRENADOR Y COMPAÑERO POKÉMON GO ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
+comp_id = st.session_state["companero_id"]
+comp_shiny = st.session_state["companero_shiny"]
+comp_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{'shiny/' if comp_shiny else ''}{comp_id}.png"
+comp_nombre = obtener_nombre_por_id(comp_id)
 
 st.markdown(f"""
 <div class="perfil-card">
@@ -368,6 +371,10 @@ st.markdown(f"""
                 <h2 style="margin:0; color:white; font-size: 24px;">{st.session_state['entrenador_actual']}</h2>
                 <p style="margin:3px 0 0 0; font-size:15px; color:#ffeb3b; font-weight: bold;">{obtener_titulo_entrenador()}</p>
             </td>
+            <td style="text-align:center; vertical-align:middle; border:none; width:85px;">
+                <img src="{comp_url}" width="65" style="background: rgba(0,0,0,0.2); border-radius:50%; border: 2px solid #ffcc00;">
+                <p style="margin:2px 0 0 0; font-size:11px; color:#ffcc00;">Compañero</p>
+            </td>
             <td style="text-align:right; vertical-align:middle; border:none;">
                 <h3 style="margin:0; color:white; font-size: 20px;">🪙 Poké-Coins</h3>
                 <p style="margin:3px 0 0 0; font-size:22px; color:#00e676; font-weight: bold;">{st.session_state['monedas']}</p>
@@ -378,11 +385,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- PESTAÑAS PRINCIPALES ---
-tab_jugar, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats = st.tabs([
-    "🎮 Jugar", "🥚 Guardería", "🎴 Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats"
+tab_jugar, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
+    "🎮 Jugar", "🥚 Guardería", "🎴 Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
-# --- 1. JUGAR (SELECTOR DE MINIJUEGOS Y GENERACIONES) ---
+# --- 1. JUGAR ---
 with tab_jugar:
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
@@ -406,9 +413,6 @@ with tab_jugar:
 
     elif not st.session_state["en_partida"]:
         st.title("🕹️ Salón de Juegos Arcade")
-        st.write("Selecciona un bloque de generaciones para tus partidas:")
-        
-        # Selector de Generaciones Clásicas, Intermedias o Avanzadas
         gen_seleccionada = st.selectbox("📂 Rango de Generaciones:", list(RANGOS_GENERACIONES.keys()))
         st.session_state["rango_gens"] = RANGOS_GENERACIONES[gen_seleccionada]
         
@@ -754,3 +758,44 @@ with tab_stats:
     for clave, datos in LOGROS_DEF.items():
         if st.session_state["logros"].get(clave, False):
             st.success(f"**{datos['titulo']}** — {datos['desc']}")
+
+# --- 9. AJUSTES (SELECCIÓN DE COMPAÑERO Y GESTIÓN) ---
+with tab_ajustes:
+    st.title("⚙️ Ajustes y Configuración")
+    st.write("Gestiona tu compañero Pokémon estilo Pokémon GO y opciones de guardado.")
+    st.divider()
+    
+    st.subheader("🐾 Selección de Compañero")
+    st.write("Escribe el nombre o número de un Pokémon que ya hayas registrado en tu Pokédex y elige su variante:")
+    
+    if not st.session_state["pokedex_capturados"]:
+        st.info("Aún no tienes Pokémon en tu Pokédex para elegir como compañero.")
+    else:
+        # Mapeo de nombres a IDs registrados
+        nombres_disponibles = {data["nombre"]: pid for pid, data in st.session_state["pokedex_capturados"].items()}
+        lista_nombres = sorted(list(nombres_disponibles.keys()))
+        
+        # Buscar el nombre actual por defecto
+        nombre_actual_comp = obtener_nombre_por_id(st.session_state["companero_id"])
+        idx_default = lista_nombres.index(nombre_actual_comp) if nombre_actual_comp in lista_nombres else 0
+        
+        col_set1, col_set2 = st.columns([2, 1])
+        with col_set1:
+            pokemon_elegido_str = st.selectbox("Selecciona compañero registrado:", lista_nombres, index=idx_default)
+        with col_set2:
+            modo_shiny_comp = st.checkbox("Versión Shiny ✨", value=st.session_state["companero_shiny"])
+            
+        if st.button("💾 Establecer como Compañero", use_container_width=True):
+            id_seleccionado = nombres_disponibles[pokemon_elegido_str]
+            st.session_state["companero_id"] = id_seleccionado
+            st.session_state["companero_shiny"] = modo_shiny_comp
+            guardar_progreso()
+            st.success(f"✔ ¡{pokemon_elegido_str} ({'Shiny' if modo_shiny_comp else 'Normal'}) es ahora tu compañero oficial!")
+            st.rerun()
+
+    st.divider()
+    st.subheader("🛠️ Gestión de Datos")
+    if st.button("🗑️ Borrar Progreso de Partida", type="secondary", use_container_width=True):
+        if os.path.exists(ARCHIVO_GUARDADO): os.remove(ARCHIVO_GUARDADO)
+        st.success("✅ Se han restablecido los datos correctamente.")
+        st.rerun()
