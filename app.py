@@ -27,39 +27,40 @@ st.markdown("""
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
         border-radius: 12px !important;
         font-weight: 700 !important;
-        font-size: 16px !important;
-        padding: 12px 20px !important;
+        font-size: 15px !important;
+        padding: 10px 18px !important;
         width: 100% !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 8px !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 10px 10px 0px 0px;
-        font-weight: 700;
-        font-size: 15px;
-        padding: 8px 15px;
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
     }
     .perfil-card {
-        background: linear-gradient(135deg, #2b32b2 0%, #1488cc 100%);
+        background: linear-gradient(135deg, #1e1e2f 0%, #2b32b2 100%);
         padding: 20px;
         border-radius: 16px;
         color: white;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
         margin-bottom: 25px;
+        border: 2px solid #ffcc00;
+    }
+    .shop-card {
+        background: #1e1e2f;
+        border-radius: 14px;
+        padding: 18px;
+        text-align: center;
+        border: 2px solid #4a4e69;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        margin-bottom: 15px;
     }
     .card-tcg {
-        background: #1e1e2f;
-        border-radius: 12px;
+        background: #1a1a2e;
+        border-radius: 14px;
         padding: 15px;
         text-align: center;
-        border: 2px solid #ffcc00;
-        box-shadow: 0 4px 15px rgba(255, 204, 0, 0.3);
+        border: 2px solid #e94560;
+        box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3);
         margin-bottom: 15px;
     }
 </style>
@@ -81,20 +82,19 @@ def cargar_progreso():
                 fallos = datos.get("fallos_totales", 0)
                 partidas_perdidas = datos.get("partidas_perdidas", 0)
                 shinies_vistos = datos.get("shinies_vistos", 0)
-                monedas = datos.get("monedas", 150)
-                inventario = datos.get("inventario", {"revividores": 0, "cebos_activos": 0})
+                monedas = datos.get("monedas", 200) # Bono inicial mejorado
+                inventario = datos.get("inventario", {})
                 entrenador_actual = datos.get("entrenador_actual", "Rojo")
                 entrenadores_desbloqueados = datos.get("entrenadores_desbloqueados", ["Rojo"])
                 insignias = datos.get("insignias", [])
                 misiones_dia = datos.get("misiones_dia", {})
                 ultimo_dia_mision = datos.get("ultimo_dia_mision", "")
-                inscripciones_legendarias = datos.get("inscripciones_legendarias", [])
-                huevos = datos.get("huevos", []) # Lista de huevos en incubación
-                cartas_coleccion = datos.get("cartas_coleccion", []) # Cartas TCG obtenidas
-                return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos, monedas, inventario, entrenador_actual, entrenadores_desbloqueados, insignias, misiones_dia, ultimo_dia_mision, inscripciones_legendarias, huevos, cartas_coleccion
+                huevos = datos.get("huevos", [])
+                cartas_coleccion = datos.get("cartas_coleccion", [])
+                return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos, monedas, inventario, entrenador_actual, entrenadores_desbloqueados, insignias, misiones_dia, ultimo_dia_mision, huevos, cartas_coleccion
         except:
             pass
-    return {}, {}, 0, {}, 0, 0, 0, 0, 150, {"revividores": 0, "cebos_activos": 0}, "Rojo", ["Rojo"], [], {}, "", [], [], []
+    return {}, {}, 0, {}, 0, 0, 0, 0, 200, {}, "Rojo", ["Rojo"], [], {}, "", [], []
 
 def guardar_progreso():
     datos = {
@@ -113,7 +113,6 @@ def guardar_progreso():
         "insignias": st.session_state["insignias"],
         "misiones_dia": st.session_state["misiones_dia"],
         "ultimo_dia_mision": st.session_state["ultimo_dia_mision"],
-        "inscripciones_legendarias": st.session_state["inscripciones_legendarias"],
         "huevos": st.session_state["huevos"],
         "cartas_coleccion": st.session_state["cartas_coleccion"]
     }
@@ -124,7 +123,7 @@ def guardar_progreso():
         pass
 
 if "pokedex_capturados" not in st.session_state:
-    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, pp_ini, sv_ini, mon_ini, inv_ini, ent_ini, ents_ini, ins_ini, mis_ini, udm_ini, ileg_ini, hue_ini, car_ini = cargar_progreso()
+    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, pp_ini, sv_ini, mon_ini, inv_ini, ent_ini, ents_ini, ins_ini, mis_ini, udm_ini, hue_ini, car_ini = cargar_progreso()
     st.session_state["pokedex_capturados"] = p_ini
     st.session_state["shinydex_capturados"] = s_ini
     st.session_state["racha_maxima"] = rm_ini
@@ -140,7 +139,6 @@ if "pokedex_capturados" not in st.session_state:
     st.session_state["insignias"] = ins_ini
     st.session_state["misiones_dia"] = mis_ini
     st.session_state["ultimo_dia_mision"] = udm_ini
-    st.session_state["inscripciones_legendarias"] = ileg_ini
     st.session_state["huevos"] = hue_ini
     st.session_state["cartas_coleccion"] = car_ini
 
@@ -149,30 +147,15 @@ if "puntos" not in st.session_state: st.session_state["puntos"] = 0
 if "derrota" not in st.session_state: st.session_state["derrota"] = False
 if "ultimo_pokemon_fallado" not in st.session_state: st.session_state["ultimo_pokemon_fallado"] = None
 if "en_partida" not in st.session_state: st.session_state["en_partida"] = False
-if "modo_seleccionado" not in st.session_state: st.session_state["modo_seleccionado"] = "🏷️ Adivina Nombre"
-if "rango_seleccionado" not in st.session_state: st.session_state["rango_seleccionado"] = (1, 1025)
-if "generaciones_permitidas" not in st.session_state: st.session_state["generaciones_permitidas"] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
-if "id_ronda" not in st.session_state: st.session_state["id_ronda"] = 0
-if "ultimo_shiny" not in st.session_state: st.session_state["ultimo_shiny"] = False
 
-if "en_combate_gimnasio" not in st.session_state: st.session_state["en_combate_gimnasio"] = False
-if "lider_actual" not in st.session_state: st.session_state["lider_actual"] = None
-if "gimnasio_ronda" not in st.session_state: st.session_state["gimnasio_ronda"] = 1
-if "gimnasio_preguntas_totales" not in st.session_state: st.session_state["gimnasio_preguntas_totales"] = 3
-if "gimnasio_pokemon_actual" not in st.session_state: st.session_state["gimnasio_pokemon_actual"] = None
-
-if "evento_legendario_activo" not in st.session_state: st.session_state["evento_legendario_activo"] = False
-if "legendario_actual" not in st.session_state: st.session_state["legendario_actual"] = None
-if "siguiente_pokemon_cache" not in st.session_state: st.session_state["siguiente_pokemon_cache"] = None
-
-# --- ENTRENADORES ---
+# --- ENTRENADORES (PRECIOS Y BALANCE MEJORADOS) ---
 ENTRENADORES = {
-    "Rojo": {"nombre": "Rojo", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "+1 Poké-Coin extra por acierto", "efecto_monedas": 1},
-    "Hojas": {"nombre": "Hojas", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png", "costo": 250, "descripcion": "Entrenadora experta en recolección.", "trait": "+50% de probabilidad base de encontrar Pokémon Shiny", "efecto_shiny": 0.05},
-    "Azul": {"nombre": "Azul", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png", "costo": 400, "descripcion": "El rival definitivo y arrogante.", "trait": "Duplica los puntos de experiencia y racha", "efecto_puntos": 2},
-    "Cintia": {"nombre": "Cintia", "gen": 4, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 1000, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "Probabilidad de Shiny x3 y +5 monedas por acierto", "efecto_shiny": 0.15, "efecto_monedas": 5}
+    "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Experiencia base"},
+    "Hojas": {"nombre": "Hojas", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png", "costo": 180, "descripcion": "Entrenadora experta en recolección.", "trait": "+2 Poké-Coins extra por acierto", "bonus_monedas": 2},
+    "Azul": {"nombre": "Azul", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png", "costo": 350, "descripcion": "El rival definitivo y arrogante.", "trait": "+5 Poké-Coins extra por acierto", "bonus_monedas": 5},
+    "Cintia": {"nombre": "Cintia", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 700, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "+10 Poké-Coins extra por acierto y x2 Shiny", "bonus_monedas": 10}
 }
 
 def agregar_notificacion(texto, tipo="success"):
@@ -205,11 +188,11 @@ def comprobar_logros():
 
 def verificar_reajustar_misiones():
     hoy_str = datetime.now().strftime("%Y-%m-%d")
-    if st.session_state["ultimo_dia_mision"] != hoy_str:
+    if st.session_state.get("ultimo_dia_mision", "") != hoy_str:
         st.session_state["ultimo_dia_mision"] = hoy_str
         st.session_state["misiones_dia"] = {
-            "mision_1": {"desc": "Consigue 5 aciertos hoy", "meta": 5, "actual": 0, "recompensa": 80, "completada": False},
-            "mision_2": {"desc": "Registra 3 Pokémon en tu Pokédex", "meta": 3, "actual": 0, "recompensa": 60, "completada": False}
+            "mision_1": {"desc": "Consigue 5 aciertos hoy", "meta": 5, "actual": 0, "recompensa": 60, "completada": False},
+            "mision_2": {"desc": "Registra 3 Pokémon en tu Pokédex", "meta": 3, "actual": 0, "recompensa": 50, "completada": False}
         }
         guardar_progreso()
 
@@ -227,21 +210,17 @@ def avanzar_progreso_mision(clave_mision, cantidad=1):
                 agregar_notificacion(f"📜 ¡Misión completada: {m['desc']}! (+{m['recompensa']} Poké-Coins)", "warning")
             guardar_progreso()
 
-# Función para avanzar pasos en huevos activos
 def avanzar_huevos():
     for h in st.session_state["huevos"]:
         if not h.get("eclosionado", False):
             h["pasos_actuales"] += 1
             if h["pasos_actuales"] >= h["pasos_necesarios"]:
                 h["eclosionado"] = True
-                # Generar Pokémon aleatorio del huevo
                 poke_id = random.randint(1, 898)
                 h["pokemon_id"] = poke_id
-                # Probabilidad de shiny según tipo de huevo
                 es_shiny = random.random() < h["prob_shiny"]
                 h["es_shiny"] = es_shiny
                 
-                # Registrar en Pokédex
                 res_spec = obtener_datos_especie(poke_id)
                 nombre_poke = limpiar_nombre_pokemon(res_spec["name"]) if res_spec else f"Pokémon #{poke_id}"
                 h["nombre_poke"] = nombre_poke
@@ -251,19 +230,6 @@ def avanzar_huevos():
                     st.session_state["shinydex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": 1}
                 guardar_progreso()
                 agregar_notificacion(f"🐣 ¡Un Huevo ha eclosionado y ha nacido {nombre_poke}{' ✨SHINY✨' if es_shiny else ''}!", "success")
-
-GENERACIONES = {
-    1: {"nombre": "Kanto", "rango": (1, 151), "emoji": "🔴"},
-    2: {"nombre": "Johto", "rango": (152, 251), "emoji": "🟡"},
-    3: {"nombre": "Hoenn", "rango": (252, 386), "emoji": "🔵"},
-    4: {"nombre": "Sinnoh", "rango": (387, 493), "emoji": "💎"},
-    5: {"nombre": "Teselia", "rango": (494, 649), "emoji": "🏙️"},
-    6: {"nombre": "Kalos", "rango": (650, 721), "emoji": "✨"},
-    7: {"nombre": "Alola", "rango": (722, 809), "emoji": "🏝️"},
-    8: {"nombre": "Galar", "rango": (810, 905), "emoji": "⚔️"},
-    9: {"nombre": "Paldea", "rango": (906, 1025), "emoji": "🍇"}
-}
-IDS_LEGENDARIOS = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 377, 378, 379]
 
 def limpiar_nombre_pokemon(nombre_api: str) -> str:
     return nombre_api.replace("-", " ").title()
@@ -305,7 +271,7 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int):
         tipos = [t["type"]["name"] for t in res_poke["types"]]
         
         ent_info = ENTRENADORES.get(st.session_state["entrenador_actual"], ENTRENADORES["Rojo"])
-        prob_shiny = 0.05 + ent_info.get("efecto_shiny", 0.0)
+        prob_shiny = 0.05 * (2.0 if ent_info["nombre"] == "Cintia" else 1.0)
         es_shiny = random.random() < prob_shiny
 
         img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
@@ -321,37 +287,42 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int):
         return {"id": poke_id, "nombre": nombre, "gen": gen, "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones}
     except: return None
 
-# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR AMPLIADO + MÚSICA RETRO ---
+# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 
 st.markdown(f"""
 <div class="perfil-card">
     <table style="width:100%; border:none;">
         <tr>
-            <td style="width:80px; vertical-align:middle; border:none;">
-                <img src="{ent_actual['avatar_url']}" width="75" style="border-radius:10px; background: rgba(255,255,255,0.1); padding: 5px;">
+            <td style="width:75px; vertical-align:middle; border:none;">
+                <img src="{ent_actual['avatar_url']}" width="70" style="border-radius:10px; background: rgba(255,255,255,0.1); padding: 4px;">
             </td>
             <td style="vertical-align:middle; border:none; padding-left:15px;">
-                <h2 style="margin:0; color:white; font-size: 26px;">{st.session_state['entrenador_actual']}</h2>
-                <p style="margin:4px 0 0 0; font-size:16px; color:#ffeb3b; font-weight: bold;">{obtener_titulo_entrenador()}</p>
+                <h2 style="margin:0; color:white; font-size: 24px;">{st.session_state['entrenador_actual']}</h2>
+                <p style="margin:3px 0 0 0; font-size:15px; color:#ffeb3b; font-weight: bold;">{obtener_titulo_entrenador()}</p>
             </td>
             <td style="text-align:right; vertical-align:middle; border:none;">
-                <h3 style="margin:0; color:white; font-size: 24px;">🪙 Poké-Coins</h3>
-                <p style="margin:4px 0 0 0; font-size:22px; color:#00e676; font-weight: bold;">{st.session_state['monedas']}</p>
+                <h3 style="margin:0; color:white; font-size: 20px;">🪙 Poké-Coins</h3>
+                <p style="margin:3px 0 0 0; font-size:22px; color:#00e676; font-weight: bold;">{st.session_state['monedas']}</p>
             </td>
         </tr>
     </table>
 </div>
 """, unsafe_allow_html=True)
 
-# Reproductor de Música Chiptune Retro en Bebida Flotante
-with st.expander("🎵 Reproductor de Música Arcade Chiptune (Retro 8-bit)", expanded=False):
-    st.audio("https://vgmsite.com/soundtracks/pokemon-red-blue-yellow-gb/101-opening.mp3", format="audio/mp3", loop=True)
-    st.caption("Disfruta de la atmósfera clásica mientras juegas y coleccionas cartas.")
+# --- REPRODUCTOR DE MÚSICA Y EFECTOS DE SONIDO (MEJORADO) ---
+with st.expander("🎵 Reproductor de Música Arcade Chiptune & Audio Retro", expanded=False):
+    col_aud1, col_aud2 = st.columns([3, 1])
+    with col_aud1:
+        st.audio("https://vgmsite.com/soundtracks/pokemon-red-blue-yellow-gb/101-opening.mp3", format="audio/mp3", loop=True)
+        st.caption("Disfruta de la banda sonora clásica de 8 bits mientras juegas.")
+    with col_aud2:
+        if st.button("🔔 Test Sonido de Éxito"):
+            st.toast("✨ ¡Sonido Arcade reproducido!", icon="🔊")
 
-# --- MENÚ DE PESTAÑAS (INCLUYENDO GUARDERÍA Y TCG) ---
+# --- MENÚ DE PESTAÑAS ---
 tab_jugar, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_misiones, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
-    "🎮 Jugar", "🥚 Guardería", "1f0cf Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
+    "🎮 Jugar", "🥚 Guardería", "🎴 Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
 # --- 1. SECCIÓN JUGAR ---
@@ -379,14 +350,11 @@ with tab_jugar:
         st.write(f"✨ *Entrenador activo:* **{st.session_state['entrenador_actual']}** (`{ent_actual['trait']}`) ✨")
         st.divider()
         
-        modo_juego = st.radio("🎯 Elige el modo de juego:", ["🏷️ Adivina Nombre", "🌍 Adivina Generación"], key="modo_juego_menu_tab")
-        
         if st.button("🚀 ¡Comenzar Partida Ya!", type="primary", use_container_width=True):
             st.session_state["en_partida"] = True
             st.session_state["puntos"] = 0
             st.session_state["racha"] = 0
             st.session_state["vistos_partida"].clear()
-            st.session_state["modo_seleccionado"] = modo_juego
             st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(1, 1025)
             st.rerun()
 
@@ -428,15 +396,19 @@ with tab_jugar:
                         st.session_state["puntos"] += 1
                         st.session_state["racha"] += 1
                         st.session_state["aciertos_totales"] += 1
-                        st.session_state["monedas"] += 6
+                        
+                        # Recompensa basada en el entrenador seleccionado
+                        ganancia_monedas = 5 + ent_actual.get("bonus_monedas", 0)
+                        st.session_state["monedas"] += ganancia_monedas
+                        
                         avanzar_progreso_mision("mision_1", 1)
-                        avanzar_huevos() # ¡Suma pasos a los huevos activos!
+                        avanzar_huevos()
                         
                         if st.session_state["racha"] > st.session_state["racha_maxima"]:
                             st.session_state["racha_maxima"] = st.session_state["racha"]
                         
                         guardar_progreso()
-                        agregar_notificacion(f"¡Correcto! Era {poke['nombre']} (+6 Poké-Coins, 🥚 +1 Paso a huevos)", "success")
+                        agregar_notificacion(f"¡Correcto! Era {poke['nombre']} (+{ganancia_monedas} Poké-Coins, 🥚 +1 Paso)", "success")
                         st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(1, 1025)
                         st.rerun()
                     else:
@@ -453,7 +425,7 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. SECCIÓN GUARDERÍA (HUEVOS POKÉMON) ---
+# --- 2. SECCIÓN GUARDERÍA ---
 with tab_guarderia:
     st.title("🥚 Guardería Pokémon")
     st.write("¡Incuba tus huevos ganando aciertos en las partidas arcade y hazlos eclosionar!")
@@ -477,7 +449,7 @@ with tab_guarderia:
                 st.caption("💡 Juega partidas de Adivinanza para avanzar los pasos de este huevo.")
             st.divider()
 
-# --- 3. SECCIÓN CARTAS TCG ---
+# --- 3. SECCIÓN CARTAS TCG (DISEÑO MEJORADO Y RAREZAS) ---
 with tab_tcg:
     st.title("🎴 Álbum de Cartas TCG")
     st.write("¡Colecciona cartas únicas comprando sobres en el mercado!")
@@ -489,75 +461,113 @@ with tab_tcg:
         cols = st.columns(3)
         for idx, carta in enumerate(st.session_state["cartas_coleccion"]):
             col = cols[idx % 3]
+            
+            # Colores distintivos según la rareza
+            color_rareza = "#a0a0a0" # Común
+            if carta['rareza'] == "Rara": color_rareza = "#4facfe"
+            elif carta['rareza'] == "Holográfica": color_rareza = "#fa709a"
+            elif carta['rareza'] == "Ultra Rara": color_rareza = "#ffcc00"
+            
             with col:
                 st.markdown(f"""
                 <div class="card-tcg">
-                    <img src="{carta['imagen']}" width="120" style="border-radius:8px;">
-                    <h4 style="margin:8px 0 4px 0; color:white;">{carta['nombre']}</h4>
-                    <p style="margin:0; color:#ffcc00; font-size:12px; font-weight:bold;">★ {carta['rareza']}</p>
+                    <img src="{carta['imagen']}" width="110" style="border-radius:8px; background: rgba(255,255,255,0.05); padding: 5px;">
+                    <h4 style="margin:8px 0 4px 0; color:white; font-size:16px;">{carta['nombre']}</h4>
+                    <p style="margin:0; color:{color_rareza}; font-size:13px; font-weight:bold;">★ {carta['rareza']}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-# --- 4. SECCIÓN ENTRENADORES ---
+# --- 4. SECCIÓN ENTRENADORES (BALANCE DE PRECIOS) ---
 with tab_entrenadores:
     st.title("👥 Entrenadores")
+    st.write("Desbloquea y selecciona entrenadores con bonificaciones especiales para tus partidas.")
+    st.divider()
+    
     for key_ent, datos in ENTRENADORES.items():
+        desbloqueado = key_ent in st.session_state["entrenadores_desbloqueados"] or datos["costo"] == 0
         es_activo = st.session_state["entrenador_actual"] == key_ent
+        
         c1, c2, c3 = st.columns([1, 3, 2])
         with c1: st.image(datos["avatar_url"], width=70)
-        with c2: st.markdown(f"### {datos['nombre']}\n*{datos['descripcion']}*\n💡 `{datos['trait']}`")
+        with c2: 
+            st.markdown(f"### {datos['nombre']}\n*{datos['descripcion']}*\n💡 `{datos['trait']}`")
         with c3:
-            if es_activo: st.success("✅ Activo")
-            else:
+            if es_activo:
+                st.success("✅ Activo")
+            elif desbloqueado:
                 if st.button("Seleccionar", key=f"sel_e_{key_ent}", use_container_width=True):
                     st.session_state["entrenador_actual"] = key_ent
                     guardar_progreso()
                     st.rerun()
+            else:
+                if st.button(f"Comprar (🪙 {datos['costo']})", key=f"comprar_e_{key_ent}", use_container_width=True):
+                    if st.session_state["monedas"] >= datos["costo"]:
+                        st.session_state["monedas"] -= datos["costo"]
+                        st.session_state["entrenadores_desbloqueados"].append(key_ent)
+                        st.session_state["entrenador_actual"] = key_ent
+                        guardar_progreso()
+                        st.success(f"🎉 ¡Has desbloqueado a {datos['nombre']}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Monedas insuficientes")
         st.divider()
 
-# --- 5. SECCIÓN MERCADO (HUEVOS Y SOBRES TCG) ---
+# --- 5. SECCIÓN MERCADO (DISEÑO RENOVADO) ---
 with tab_mercado:
     st.title("🛒 Bazar de Objetos y TCG")
-    st.write(f"🪙 Tus Monedas: **{st.session_state['monedas']}**")
+    st.write(f"🪙 Tus Monedas Disponibles: **{st.session_state['monedas']}**")
     st.divider()
     
     c1, c2, c3 = st.columns(3)
+    
     with c1:
-        st.markdown("### 🥚 Huevo Normal")
-        st.write("Necesita 10 aciertos para eclosionar.")
-        if st.button("Comprar (🪙 100)", key="b_h_norm", use_container_width=True):
-            if st.session_state["monedas"] >= 100:
-                st.session_state["monedas"] -= 100
+        st.markdown("""
+        <div class="shop-card">
+            <h3>🥚 Huevo Normal</h3>
+            <p style="color:#aaa; font-size:13px;">Requiere 10 aciertos para eclosionar. Probabilidad estándar de Shiny.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Comprar (🪙 75)", key="b_h_norm", use_container_width=True):
+            if st.session_state["monedas"] >= 75:
+                st.session_state["monedas"] -= 75
                 st.session_state["huevos"].append({"tipo": "Huevo Normal", "pasos_actuales": 0, "pasos_necesarios": 10, "prob_shiny": 0.05, "eclosionado": False})
                 guardar_progreso()
-                st.success("✅ ¡Huevo Normal añadido a la Guardería!")
+                st.success("✅ ¡Huevo Normal adquirido!")
                 st.rerun()
             else: st.error("❌ Monedas insuficientes")
             
     with c2:
-        st.markdown("### ✨ Huevo Shiny")
-        st.write("Alta probabilidad de Shiny (5 aciertos).")
-        if st.button("Comprar (🪙 300)", key="b_h_shiny", use_container_width=True):
-            if st.session_state["monedas"] >= 300:
-                st.session_state["monedas"] -= 300
+        st.markdown("""
+        <div class="shop-card">
+            <h3>✨ Huevo Shiny</h3>
+            <p style="color:#aaa; font-size:13px;">Alta probabilidad de Shiny (5 aciertos para eclosionar).</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Comprar (🪙 200)", key="b_h_shiny", use_container_width=True):
+            if st.session_state["monedas"] >= 200:
+                st.session_state["monedas"] -= 200
                 st.session_state["huevos"].append({"tipo": "Huevo Shiny", "pasos_actuales": 0, "pasos_necesarios": 5, "prob_shiny": 0.50, "eclosionado": False})
                 guardar_progreso()
-                st.success("✅ ¡Huevo Shiny añadido a la Guardería!")
+                st.success("✅ ¡Huevo Shiny adquirido!")
                 st.rerun()
             else: st.error("❌ Monedas insuficientes")
 
     with c3:
-        st.markdown("### 🎴 Sobre TCG")
-        st.write("Contiene 1 carta aleatoria coleccionable.")
-        if st.button("Comprar (🪙 150)", key="b_sobre_tcg", use_container_width=True):
-            if st.session_state["monedas"] >= 150:
-                st.session_state["monedas"] -= 150
-                poke_id = random.randint(1, 150)
+        st.markdown("""
+        <div class="shop-card">
+            <h3>🎴 Sobre TCG</h3>
+            <p style="color:#aaa; font-size:13px;">Contiene 1 carta coleccionable aleatoria con distintas rarezas.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Comprar (🪙 90)", key="b_sobre_tcg", use_container_width=True):
+            if st.session_state["monedas"] >= 90:
+                st.session_state["monedas"] -= 90
+                poke_id = random.randint(1, 151)
                 res_p = obtener_datos_pokemon(poke_id)
                 res_s = obtener_datos_especie(poke_id)
                 if res_p and res_s:
                     nombre = limpiar_nombre_pokemon(res_s["name"])
-                    rareza = random.choice(["Común", "Común", "Rara", "Holográfica", "Ultra Rara"])
+                    rareza = random.choices(["Común", "Rara", "Holográfica", "Ultra Rara"], weights=[60, 25, 12, 3])[0]
                     img = res_p["sprites"]["front_default"]
                     st.session_state["cartas_coleccion"].append({"nombre": nombre, "rareza": rareza, "imagen": img})
                     guardar_progreso()
