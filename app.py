@@ -12,6 +12,21 @@ st.set_page_config(
     layout="centered"
 )
 
+# --- ESTILOS CSS LIMPIOS PARA TRANSICIONES SUAVES (SIN GLITCHES) ---
+st.markdown("""
+<style>
+    /* Transición suave para botones y elementos interactivos */
+    div.stButton > button {
+        transition: all 0.25s ease-in-out !important;
+        border-radius: 8px !important;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- SISTEMA DE PERSISTENCIA (JSON LOCAL) ---
 ARCHIVO_GUARDADO = "pokedex_save.json"
 
@@ -283,7 +298,7 @@ def obtener_pregunta_tipos(min_id: int, max_id: int):
             }
     return None
 
-# --- MENÚ LATERAL (ESTÁNDAR NATIVO) ---
+# --- MENÚ LATERAL ---
 opcion_menu = st.sidebar.radio("🧭 Menú Principal", ["🎮 Jugar Partida", "🏆 Reto Regional (Name All)", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas y Logros", "⚙️ Ajustes"])
 
 # --- SECCIÓN POKÉDEX ---
@@ -511,7 +526,7 @@ if not st.session_state["en_partida"]:
         st.rerun()
 
 else:
-    # --- PARTIDA ACTIVA (NATIVA Y LIMPIA) ---
+    # --- PARTIDA ACTIVA ---
     st.title("🎯 Partida en Curso")
     
     if st.session_state["ultima_notificacion"]:
@@ -519,7 +534,6 @@ else:
         if msg["tipo"] == "success": st.success(msg["texto"])
         elif msg["tipo"] == "warning": st.warning(msg["texto"])
         else: st.error(msg["texto"])
-        # Limpiamos la notificación para que no se repita eternamente
         st.session_state["ultima_notificacion"] = None
     
     c1, c2 = st.columns(2)
