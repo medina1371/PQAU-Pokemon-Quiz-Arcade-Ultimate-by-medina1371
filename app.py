@@ -167,7 +167,6 @@ components.html("""
 </script>
 """, height=0)
 
-# Contenedor visualmente oculto para el botón de disparo por teclado
 st.markdown("""
 <style>
     div[data-testid="stHorizontalBlock"] > div:has(#hidden_trigger_btn) {
@@ -208,9 +207,10 @@ def obtener_titulo_entrenador():
     else: return "🌱 Novato de Pueblo Paleta"
 
 LOGROS_DEF = {
-    "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1},
-    "suerte_shiny": {"titulo": "✨ ¡Suerte Variocolor!", "desc": "Encuentra y atrapa tu primer Shiny.", "condicion": lambda: len(st.session_state["shinydex_capturados"]) >= 1},
-    "huevo_eclosionado": {"titulo": "🥚 Padre Pokémon", "desc": "Eclosiona tu primer Huevo Pokémon.", "condicion": lambda: any(h.get("eclosionado") for h in st.session_state["huevos"])}
+    "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon en la Pokédex.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1},
+    "suerte_shiny": {"titulo": "✨ ¡Suerte Variocolor!", "desc": "Encuentra y atrapa tu primer Pokémon Shiny.", "condicion": lambda: len(st.session_state["shinydex_capturados"]) >= 1},
+    "huevo_eclosionado": {"titulo": "🥚 Padre Pokémon", "desc": "Eclosiona tu primer Huevo Pokémon en la guardería.", "condicion": lambda: any(h.get("eclosionado") for h in st.session_state["huevos"])},
+    "coleccionista_tcg": {"titulo": "🎴 Coleccionista de TCG", "desc": "Obtén al menos 3 cartas en tu álbum TCG.", "condicion": lambda: len(st.session_state["cartas_coleccion"]) >= 3}
 }
 
 def comprobar_logros():
@@ -356,7 +356,7 @@ if st.session_state["mostrar_consola_trucos"]:
             else:
                 st.error("✘ Código no válido.")
 
-# --- PERFIL DE ENTRENADOR Y COMPAÑERO POKÉMON GO ---
+# --- PERFIL DE ENTRENADOR Y COMPAÑERO ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 comp_id = st.session_state["companero_id"]
 comp_shiny = st.session_state["companero_shiny"]
@@ -745,31 +745,54 @@ with tab_pokedex:
 # --- 7. SHINYMEX ---
 with tab_shinydex:
     st.title("✨ ShinyDex")
-    for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
-        c1, c2 = st.columns([1, 5])
-        with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=80)
-        with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
-        st.divider()
+    st.write(f"Pokémon variocolor registrados: **{len(st.session_state['shinydex_capturados'])}**")
+    st.divider()
+    if not st.session_state["shinydex_capturados"]:
+        st.info("Aún no has descubierto ningún Pokémon Shiny. ¡Sigue jugando!")
+    else:
+        for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
+            c1, c2 = st.columns([1, 5])
+            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=80)
+            with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
+            st.divider()
 
-# --- 8. ESTADÍSTICAS ---
+# --- 8. ESTADÍSTICAS Y LOGROS ---
 with tab_stats:
-    st.title("📊 Estadísticas")
+    st.title("📊 Estadísticas y Logros")
     comprobar_logros()
-    st.metric("🔥 Racha Máxima", st.session_state["racha_maxima"])
-    st.metric("✅ Aciertos Totales", st.session_state["aciertos_totales"])
-    st.subheader("🏅 Logros Desbloqueados:")
+    
+    col_s1, col_s2, col_s3 = st.columns(3)
+    with col_s1: st.metric("🔥 Racha Máxima", st.session_state["racha_maxima"])
+    with col_s2: st.metric("✅ Aciertos Totales", st.session_state["aciertos_totales"])
+    with col_s3: st.metric("❌ Fallos Totales", st.session_state["fallos_totales"])
+    
+    st.divider()
+    st.subheader("🎖️ Guía de Títulos de Entrenador")
+    st.write("Tu título actual se actualiza automáticamente según tu progreso global:")
+    st.markdown("""
+    * 🌱 **Novato de Pueblo Paleta**: Menos de 50 registros o racha menor a 10.
+    * 📘 **Coleccionista Experto**: 50+ registros o racha de 10+.
+    * ⚡ **Maestro Pokémon**: 100+ registros o racha de 15+.
+    * 👑 **Campeón Indiscutible**: 500+ registros o racha de 20+.
+    """)
+    
+    st.divider()
+    st.subheader("🏆 Lista de Logros")
     for clave, datos in LOGROS_DEF.items():
-        if st.session_state["logros"].get(clave, False):
-            st.success(f"**{datos['titulo']}** — {datos['desc']}")
+        completado = st.session_state["logros"].get(clave, False)
+        if completado:
+            st.success(f"**{datos['titulo']}** (Completado) — {datos['desc']}")
+        else:
+            st.info(f"🔒 **{datos['titulo']}** (Pendiente) — {datos['desc']}")
 
-# --- 9. AJUSTES (SELECCIÓN DE COMPAÑERO Y VALIDACIÓN SHINY) ---
+# --- 9. AJUSTES ---
 with tab_ajustes:
     st.title("⚙️ Ajustes y Configuración")
     st.write("Gestiona tu compañero Pokémon estilo Pokémon GO y opciones de guardado.")
     st.divider()
     
     st.subheader("🐾 Selección de Compañero")
-    st.write("Escribe el nombre de un Pokémon registrado en tu Pokédex y elige su variante:")
+    st.write("Elige un Pokémon registrado en tu Pokédex y su variante:")
     
     if not st.session_state["pokedex_capturados"]:
         st.info("Aún no tienes Pokémon en tu Pokédex para elegir como compañero.")
@@ -785,7 +808,6 @@ with tab_ajustes:
             pokemon_elegido_str = st.selectbox("Selecciona compañero registrado:", lista_nombres, index=idx_default)
         with col_set2:
             id_tentativo = nombres_disponibles[pokemon_elegido_str]
-            # Verificación estricta: Solo permite seleccionar Shiny si está en la ShinyDex
             tiene_shiny = id_tentativo in st.session_state["shinydex_capturados"]
             
             if tiene_shiny:
