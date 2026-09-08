@@ -13,7 +13,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS PARA UNA INTERFAZ FLUIDA Y MODERNA ---
+# --- ESTILOS CSS PARA UNA INTERFAZ AMPLIADA Y MODERNA ---
 st.markdown("""
 <style>
     .stApp {
@@ -23,27 +23,41 @@ st.markdown("""
         from { opacity: 0.9; }
         to { opacity: 1; }
     }
+    /* Botones más grandes y llamativos */
     div.stButton > button {
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        padding: 12px 20px !important;
         width: 100% !important;
-        margin-bottom: 8px !important;
+        margin-bottom: 10px !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     }
     div.stButton > button:active {
         transform: translateY(0px);
     }
-    /* Estilo personalizado para pestañas superiores */
+    /* Pestañas superiores más grandes */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 12px;
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0px 0px;
-        font-weight: 600;
+        border-radius: 10px 10px 0px 0px;
+        font-weight: 700;
+        font-size: 16px;
+        padding: 10px 20px;
+    }
+    /* Tarjeta de perfil principal ampliada */
+    .perfil-card {
+        background: linear-gradient(135deg, #2b32b2 0%, #1488cc 100%);
+        padding: 20px;
+        border-radius: 16px;
+        color: white;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        margin-bottom: 25px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -153,7 +167,6 @@ if "siguiente_pokemon_cache" not in st.session_state: st.session_state["siguient
 ENTRENADORES = {
     "Rojo": {
         "nombre": "Rojo", "gen": 1, 
-        "icono": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/trainers/1.png",
         "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png",
         "costo": 0, "descripcion": "El campeón silencioso de Kanto.",
         "trait": "+1 Poké-Coin extra por acierto", "efecto_monedas": 1
@@ -254,7 +267,6 @@ def comprobar_logros():
             except:
                 pass
 
-# --- MISIONES DEL PROFESOR OAK ---
 def verificar_reajustar_misiones():
     hoy_str = datetime.now().strftime("%Y-%m-%d")
     if st.session_state["ultimo_dia_mision"] != hoy_str:
@@ -279,7 +291,6 @@ def avanzar_progreso_mision(clave_mision, cantidad=1):
                 agregar_notificacion(f"📜 ¡Misión completada: {m['desc']}! (+{m['recompensa']} Poké-Coins)", "warning")
             guardar_progreso()
 
-# --- LÍDERES DE GIMNASIO ---
 LIDERES_GIMNASIO = [
     {"nombre": "Brock", "titulo": "Líder de Ciudad Plateada", "tipo": "Roca", "avatar": "🪨", "rango_ids": (1, 151)},
     {"nombre": "Misty", "titulo": "Líder de Ciudad Celeste", "tipo": "Agua", "avatar": "💧", "rango_ids": (1, 251)},
@@ -450,30 +461,36 @@ def precargar_siguiente_pokemon(min_id: int, max_id: int):
     except:
         pass
 
-# --- BARRA LATERAL SIMPLIFICADA (PERFIL Y MONEDAS) ---
-with st.sidebar:
-    ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
-    c_av1, c_av2 = st.columns([1, 2])
-    with c_av1:
-        st.image(ent_actual["avatar_url"], width=55)
-    with c_av2:
-        st.markdown(f"### {st.session_state['entrenador_actual']}")
-    st.caption(f"**Título:** {obtener_titulo_entrenador()}")
-    st.metric("🪙 Poké-Coins", st.session_state["monedas"])
-    
-    if st.session_state.get("inscripciones_legendarias"):
-        st.success(f"🌟 Legendarios: {len(st.session_state['inscripciones_legendarias'])}")
-    st.divider()
-    st.info("💡 Usa las pestañas superiores para navegar cómodamente por el juego.")
+# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR AMPLIADO ---
+ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 
-# --- MENÚ SUPERIOR DE PESTAÑAS (INTERFAZ MODERNA) ---
+st.markdown(f"""
+<div class="perfil-card">
+    <table style="width:100%; border:none;">
+        <tr>
+            <td style="width:80px; vertical-align:middle; border:none;">
+                <img src="{ent_actual['avatar_url']}" width="75" style="border-radius:10px; background: rgba(255,255,255,0.1); padding: 5px;">
+            </td>
+            <td style="vertical-align:middle; border:none; padding-left:15px;">
+                <h2 style="margin:0; color:white; font-size: 26px;">{st.session_state['entrenador_actual']}</h2>
+                <p style="margin:4px 0 0 0; font-size:16px; color:#ffeb3b; font-weight: bold;">{obtener_titulo_entrenador()}</p>
+            </td>
+            <td style="text-align:right; vertical-align:middle; border:none;">
+                <h3 style="margin:0; color:white; font-size: 24px;">🪙 Poké-Coins</h3>
+                <p style="margin:4px 0 0 0; font-size:22px; color:#00e676; font-weight: bold;">{st.session_state['monedas']}</p>
+            </td>
+        </tr>
+    </table>
+</div>
+""", unsafe_allow_html=True)
+
+# --- MENÚ SUPERIOR DE PESTAÑAS (AMPLIADO) ---
 tab_jugar, tab_entrenadores, tab_reto, tab_mercado, tab_misiones, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "👥 Entrenadores", "🏆 Reto Regional", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas", "⚙️ Ajustes"
 ])
 
 # --- 1. SECCIÓN JUGAR ---
 with tab_jugar:
-    # --- PANTALLA DE DERROTA ---
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
         st.error("¡Te equivocaste de respuesta!")
@@ -481,7 +498,7 @@ with tab_jugar:
             pf = st.session_state["ultimo_pokemon_fallado"]
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                st.image(pf["imagen"], width=220)
+                st.image(pf["imagen"], width=240)
                 st.subheader(f"Era: #{pf['id']:03d} - {pf['nombre']}")
         st.divider()
         
@@ -513,7 +530,6 @@ with tab_jugar:
                 st.session_state["en_combate_gimnasio"] = False
                 st.rerun()
 
-    # --- COMBATE DE GIMNASIO (RPG) ---
     elif st.session_state["en_combate_gimnasio"]:
         st.title(f"⚔️ COMBATE DE GIMNASIO: {st.session_state['lider_actual']['nombre']}")
         st.write(f"*{st.session_state['lider_actual']['titulo']}* — Pregunta {st.session_state['gimnasio_ronda']} de {st.session_state['gimnasio_preguntas_totales']}")
@@ -523,7 +539,7 @@ with tab_jugar:
         if poke_g:
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                st.image(poke_g["imagen"], width=240)
+                st.image(poke_g["imagen"], width=260)
                 st.markdown(f"### {st.session_state['lider_actual']['avatar']} ¡El líder desafía tus conocimientos!")
                 
             for idx, opc in enumerate(poke_g["opciones"]):
@@ -546,16 +562,9 @@ with tab_jugar:
                         st.session_state["ultimo_pokemon_fallado"] = poke_g
                         st.rerun()
 
-    # --- MENÚ INICIAL O PARTIDA EN CURSO ---
     elif not st.session_state["en_partida"]:
-        ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
         st.title("🎮 Pokémon Quiz Arcade Ultimate")
-        
-        c_inf1, c_inf2 = st.columns([1, 4])
-        with c_inf1:
-            st.image(ent_actual["avatar_url"], width=65)
-        with c_inf2:
-            st.write(f"✨ *Entrenador actual:* **{st.session_state['entrenador_actual']}** (`{ent_actual['trait']}`) ✨")
+        st.write(f"✨ *Entrenador activo:* **{st.session_state['entrenador_actual']}** (`{ent_actual['trait']}`) ✨")
         st.divider()
         
         filtro_gen = st.radio("🌍 1. Selecciona el filtro de generaciones:", ["🌟 Todas (Gen 1-9)", "🔴 Clásicas (Gen 1 - 3)", "💎 Intermedias (Gen 4 - 6)", "⚔️ Recientes (Gen 7 - 9)"], key="filtro_gen_menu_tab")
@@ -588,7 +597,6 @@ with tab_jugar:
             st.rerun()
 
     else:
-        # --- PARTIDA ACTIVA ---
         st.title("🎯 Partida en Curso")
         
         if st.session_state["ultima_notificacion"]:
@@ -632,11 +640,10 @@ with tab_jugar:
             bonus_monedas = ent_info.get("efecto_monedas", 1)
             bonus_puntos = ent_info.get("efecto_puntos", 1)
 
-            # MODO 1: ADIVINA NOMBRE
             if modo == "🏷️ Adivina Nombre":
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2:
-                    if poke["imagen"]: st.image(poke["imagen"], width=260)
+                    if poke["imagen"]: st.image(poke["imagen"], width=280)
                     
                 st.subheader("¿Cuál de estos Pokémon es el correcto?")
                 for idx, opc_nombre in enumerate(poke["opciones"]):
@@ -675,11 +682,10 @@ with tab_jugar:
                             st.session_state["derrota"] = True
                             st.rerun()
 
-            # MODO 2: ADIVINA GENERACIÓN
             elif modo == "🌍 Adivina Generación":
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2: 
-                    if poke["imagen"]: st.image(poke["imagen"], width=260)
+                    if poke["imagen"]: st.image(poke["imagen"], width=280)
                     
                 st.subheader("¿A qué generación pertenece este Pokémon?")
                 gens_permitidas = st.session_state["generaciones_permitidas"]
@@ -709,7 +715,6 @@ with tab_jugar:
                             st.session_state["derrota"] = True
                             st.rerun()
 
-            # MODO 3: CRIPTA DE TIPOS
             elif modo == "🧩 Cripta de Tipos":
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2:
@@ -741,7 +746,6 @@ with tab_jugar:
                             st.session_state["derrota"] = True
                             st.rerun()
 
-            # MODO 4: SILUETA MISTERIOSA (REAL)
             elif modo == "🕵️ Silueta Misteriosa":
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2:
@@ -750,7 +754,7 @@ with tab_jugar:
                         alpha = img_rgba.split()[3]
                         silueta = Image.new("RGBA", img_rgba.size, (0, 0, 0, 255))
                         silueta.putalpha(alpha)
-                        st.image(silueta, width=260)
+                        st.image(silueta, width=280)
                     
                 st.subheader("¿Quién es este Pokémon oculto en la sombra?")
                 for idx, opc_nombre in enumerate(poke["opciones"]):
@@ -797,9 +801,9 @@ with tab_entrenadores:
         
         c1, c2, c3 = st.columns([1, 3, 2])
         with c1:
-            st.image(datos["avatar_url"], width=70)
+            st.image(datos["avatar_url"], width=80)
         with c2:
-            st.markdown(f"**{datos['nombre']}** (Gen {datos['gen']})\n\n*{datos['descripcion']}*\n\n💡 **Trait:** `{datos['trait']}`")
+            st.markdown(f"### {datos['nombre']} (Gen {datos['gen']})\n\n*{datos['descripcion']}*\n\n💡 **Trait:** `{datos['trait']}`")
         with c3:
             if es_activo:
                 st.success("✅ Activo")
@@ -868,7 +872,7 @@ with tab_reto:
             col = cols_grilla[idx % 5]
             with col:
                 if pid in st.session_state["reto_adivinados"]:
-                    st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=70)
+                    st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=80)
                     st.caption(f"#{pid}\n{obtener_nombre_por_id(pid)}")
                 else:
                     st.info(f"#{pid}\n❓")
@@ -932,8 +936,8 @@ with tab_pokedex:
     if st.session_state["pokedex_capturados"]:
         for pid, data in sorted(st.session_state["pokedex_capturados"].items()):
             c1, c2 = st.columns([1, 5])
-            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=65)
-            with c2: st.write(f"**#{pid:03d}** - {data['nombre']} (Gen {data['gen']})")
+            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=75)
+            with c2: st.write(f"### #{pid:03d} - {data['nombre']} (Gen {data['gen']})")
             st.divider()
     else:
         st.info("💡 ¡Juega para rellenar tu Pokédex!")
@@ -946,8 +950,8 @@ with tab_shinydex:
     if st.session_state["shinydex_capturados"]:
         for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
             c1, c2 = st.columns([1, 5])
-            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=75)
-            with c2: st.write(f"**#{pid:03d}** - {data['nombre']} ✨")
+            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=85)
+            with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
             st.divider()
     else:
         st.info("🍀 Todavía no te ha salido ningún Shiny. ¡Sigue probando!")
