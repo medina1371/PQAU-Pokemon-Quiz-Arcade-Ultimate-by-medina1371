@@ -230,18 +230,19 @@ def avanzar_huevos():
             h["pasos_actuales"] += 1
             if h["pasos_actuales"] >= h["pasos_necesarios"]:
                 h["eclosionado"] = True
-                poke_id = random.randint(1, 898)
+                poke_id = random.randint(1, 1025)
                 h["pokemon_id"] = poke_id
                 es_shiny = random.random() < h["prob_shiny"]
                 h["es_shiny"] = es_shiny
                 
                 res_spec = obtener_datos_especie(poke_id)
                 nombre_poke = limpiar_nombre_pokemon(res_spec["name"]) if res_spec else f"Pokémon #{poke_id}"
+                gen_poke = int(res_spec["generation"]["url"].split("/")[-2]) if res_spec else 1
                 h["nombre_poke"] = nombre_poke
                 
-                st.session_state["pokedex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": 1}
+                st.session_state["pokedex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": gen_poke}
                 if es_shiny:
-                    st.session_state["shinydex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": 1}
+                    st.session_state["shinydex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": gen_poke}
                 guardar_progreso()
                 agregar_notificacion(f"🐣 ¡Un Huevo ha eclosionado y nació {nombre_poke}{' ✨SHINY✨' if es_shiny else ''}!", "success")
 
@@ -250,18 +251,32 @@ def limpiar_nombre_pokemon(nombre_api: str) -> str:
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_especie(poke_id: int):
-    try: return requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=2).json()
-    except: return None
+    try:
+        r = requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=4)
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException:
+        return None
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_pokemon(poke_id: int):
-    try: return requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=2).json()
-    except: return None
+    try:
+        r = requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=4)
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException:
+        return None
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def descargar_imagen_bytes(url: str):
-    try: return requests.get(url, timeout=2).content
-    except: return None
+    if not url:
+        return None
+    try:
+        r = requests.get(url, timeout=4)
+        r.raise_for_status()
+        return r.content
+    except requests.RequestException:
+        return None
 
 def obtener_nombre_por_id(poke_id: int):
     res = obtener_datos_especie(poke_id)
@@ -303,59 +318,76 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     new_data.append((255, 255, 255, 0))
             pil_img.putdata(new_data)
         
+        # --- NUEVA LÓGICA MODO TIPO: 2 TIPOS Y 4 OPCIONES DE POKÉMON CON ICONOS ---
         if modo == "tipo":
+            # Buscamos un Pokémon con exactamente 2 tipos. Si no encontramos uno, usamos el original.
             intentos_bucle = 0
-            while len(tipos) < 2 and intentos_bucle < 15:
+            while len(tipos) != 2 and intentos_bucle < 30:
                 intentos_bucle += 1
-                poke_id = random.randint(min_id, max_id)
-                res_species = obtener_datos_especie(poke_id)
-                res_poke = obtener_datos_pokemon(poke_id)
-                if res_species and res_poke:
+                candidato_id = random.randint(min_id, max_id)
+                candidato_species = obtener_datos_especie(candidato_id)
+                candidato_poke = obtener_datos_pokemon(candidato_id)
+                if not candidato_species or not candidato_poke:
+                    continue
+                candidato_tipos = [t["type"]["name"] for t in candidato_poke["types"]]
+                if len(candidato_tipos) == 2:
+                    poke_id = candidato_id
+                    res_species = candidato_species
+                    res_poke = candidato_poke
                     nombre = limpiar_nombre_pokemon(res_species["name"])
                     gen = int(res_species["generation"]["url"].split("/")[-2])
-                    tipos = [t["type"]["name"] for t in res_poke["types"]]
-            
+                    tipos = candidato_tipos
+                    img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
+                    if not img_url:
+                        img_url = res_poke["sprites"]["front_default"]
+                    img_data = descargar_imagen_bytes(img_url)
+                    pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
+                    break
+
             tipos_capitalizados = [t.capitalize() for t in tipos]
             texto_tipos = " / ".join(tipos_capitalizados)
-            
-            ids_erroneos = []
-            while len(ids_erroneos) < 3:
-                rid = random.randint(min_id, max_id)
-                if rid != poke_id and rid not in ids_erroneos:
-                    ids_erroneos.append(rid)
-            
-            opciones_data = []
-            opciones_data.append({
+            combinacion_correcta = tuple(sorted(tipos))
+
+            # Generamos 3 Pokémon erróneos cuya combinación NO coincida con la correcta.
+            opciones_data = [{
                 "nombre": nombre,
                 "id": poke_id,
                 "es_correcto": True,
                 "imagen_url": res_poke["sprites"]["front_default"]
-            })
-            
-            for eid in ids_erroneos:
-                r_spec_err = obtener_datos_especie(eid)
-                r_poke_err = obtener_datos_pokemon(eid)
-                if r_spec_err and r_poke_err:
-                    e_nombre = limpiar_nombre_pokemon(r_spec_err["name"])
-                    e_img = r_poke_err["sprites"]["front_default"]
-                    opciones_data.append({
-                        "nombre": e_nombre,
-                        "id": eid,
-                        "es_correcto": False,
-                        "imagen_url": e_img
-                    })
-            
+            }]
+            ids_usados = {poke_id}
+            intentos_err = 0
+            while len(opciones_data) < 4 and intentos_err < 100:
+                intentos_err += 1
+                rid = random.randint(min_id, max_id)
+                if rid in ids_usados:
+                    continue
+                r_spec_err = obtener_datos_especie(rid)
+                r_poke_err = obtener_datos_pokemon(rid)
+                if not r_spec_err or not r_poke_err:
+                    continue
+                tipos_err = tuple(sorted(t["type"]["name"] for t in r_poke_err["types"]))
+                if tipos_err == combinacion_correcta:
+                    continue
+                ids_usados.add(rid)
+                opciones_data.append({
+                    "nombre": limpiar_nombre_pokemon(r_spec_err["name"]),
+                    "id": rid,
+                    "es_correcto": False,
+                    "imagen_url": r_poke_err["sprites"]["front_default"]
+                })
+
             random.shuffle(opciones_data)
-            
+
             return {
-                "id": poke_id, 
-                "nombre": nombre, 
-                "gen": gen, 
-                "tipos": tipos_capitalizados, 
+                "id": poke_id,
+                "nombre": nombre,
+                "gen": gen,
+                "tipos": tipos_capitalizados,
                 "texto_tipos": texto_tipos,
-                "shiny": es_shiny, 
-                "imagen": pil_img, 
-                "opciones_tipo": opciones_data, 
+                "shiny": es_shiny,
+                "imagen": pil_img,
+                "opciones_tipo": opciones_data,
                 "respuesta_correcta": nombre
             }
 
@@ -574,10 +606,7 @@ with tab_jugar:
             st.session_state["pokemon_actual"] = poke
             
         if poke:
-            st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
-            if poke["shiny"]:
-                st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
-            guardar_progreso()
+            # El Pokémon se registra al acertar, no simplemente al aparecer.
 
             # --- RENDERIZADO VISUAL SEGÚN EL MODO ---
             if modo_actual == "tipo":
@@ -588,6 +617,7 @@ with tab_jugar:
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Mostramos 4 opciones de Pokémon, cada una con su icono visual
                 cols_opc = st.columns(2)
                 for idx, opc in enumerate(poke["opciones_tipo"]):
                     col_target = cols_opc[idx % 2]
@@ -597,13 +627,14 @@ with tab_jugar:
                             <img src="{opc['imagen_url']}" width="90">
                         </div>
                         """, unsafe_allow_html=True)
-                        
-                        # CORREGIDO: Se incluye el ID del Pokémon actual para asegurar una clave única por turno
-                        if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{poke['id']}_{idx}"):
+                        if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{idx}"):
                             if opc["es_correcto"]:
                                 st.session_state["puntos"] += 1
                                 st.session_state["racha"] += 1
                                 st.session_state["aciertos_totales"] += 1
+                                st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
+                                if poke["shiny"]:
+                                    st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
                                 
                                 ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
                                 st.session_state["monedas"] += ganancia_monedas
@@ -623,6 +654,7 @@ with tab_jugar:
                                 st.session_state["derrota"] = True
                                 st.rerun()
             else:
+                # Modos clásicos de una sola imagen central
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2:
                     if poke["imagen"]: st.image(poke["imagen"], width=280)
@@ -636,13 +668,14 @@ with tab_jugar:
                 
                 for idx, opc_item in enumerate(poke["opciones"]):
                     opc_nombre = opc_item["nombre"]
-                    
-                    # CORREGIDO: Se incluye el ID del Pokémon actual para evitar colisiones de IDs en los botones
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{poke['id']}_{idx}"):
+                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
                         if opc_nombre == poke["respuesta_correcta"]:
                             st.session_state["puntos"] += 1
                             st.session_state["racha"] += 1
                             st.session_state["aciertos_totales"] += 1
+                            st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
+                            if poke["shiny"]:
+                                st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
                             
                             ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
                             st.session_state["monedas"] += ganancia_monedas
@@ -708,7 +741,9 @@ with tab_tcg:
         </div>
         """, unsafe_allow_html=True)
         if st.button("✨ Guardar en el Álbum"):
+            st.session_state["cartas_coleccion"].append(c_rec)
             st.session_state["carta_recien_abierta"] = None
+            guardar_progreso()
             st.rerun()
         st.divider()
 
@@ -820,7 +855,6 @@ with tab_mercado:
                     rareza = random.choices(["Común", "Rara", "Holográfica", "Ultra Rara"], weights=[60, 25, 12, 3])[0]
                     img = res_p["sprites"]["front_default"]
                     nueva_carta = {"nombre": nombre, "rareza": rareza, "imagen": img}
-                    st.session_state["cartas_coleccion"].append(nueva_carta)
                     st.session_state["carta_recien_abierta"] = nueva_carta
                     guardar_progreso()
                     st.rerun()
