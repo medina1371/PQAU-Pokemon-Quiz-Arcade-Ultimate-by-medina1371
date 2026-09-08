@@ -6,6 +6,7 @@ import io
 import json
 import os
 from datetime import datetime
+import time
 
 st.set_page_config(
     page_title="Pokémon Quiz Arcade Ultimate ⚡",
@@ -13,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS PARA UNA INTERFAZ AMPLIADA Y MODERNA ---
+# --- ESTILOS CSS PARA UNA INTERFAZ MODERNA ---
 st.markdown("""
 <style>
     .stApp {
@@ -66,7 +67,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEMA DE PERSISTENCIA (JSON LOCAL) ---
+# --- PERSISTENCIA (JSON LOCAL) ---
 ARCHIVO_GUARDADO = "pokedex_save.json"
 
 def cargar_progreso():
@@ -82,7 +83,7 @@ def cargar_progreso():
                 fallos = datos.get("fallos_totales", 0)
                 partidas_perdidas = datos.get("partidas_perdidas", 0)
                 shinies_vistos = datos.get("shinies_vistos", 0)
-                monedas = datos.get("monedas", 200) # Bono inicial mejorado
+                monedas = datos.get("monedas", 150)
                 inventario = datos.get("inventario", {})
                 entrenador_actual = datos.get("entrenador_actual", "Rojo")
                 entrenadores_desbloqueados = datos.get("entrenadores_desbloqueados", ["Rojo"])
@@ -94,7 +95,7 @@ def cargar_progreso():
                 return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos, monedas, inventario, entrenador_actual, entrenadores_desbloqueados, insignias, misiones_dia, ultimo_dia_mision, huevos, cartas_coleccion
         except:
             pass
-    return {}, {}, 0, {}, 0, 0, 0, 0, 200, {}, "Rojo", ["Rojo"], [], {}, "", [], []
+    return {}, {}, 0, {}, 0, 0, 0, 0, 150, {}, "Rojo", ["Rojo"], [], {}, "", [], []
 
 def guardar_progreso():
     datos = {
@@ -149,13 +150,16 @@ if "ultimo_pokemon_fallado" not in st.session_state: st.session_state["ultimo_po
 if "en_partida" not in st.session_state: st.session_state["en_partida"] = False
 if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
+if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recien_abierta"] = None
 
-# --- ENTRENADORES (PRECIOS Y BALANCE MEJORADOS) ---
+# --- ENTRENADORES (BALANCEADOS Y AMPLIADOS) ---
 ENTRENADORES = {
-    "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Experiencia base"},
-    "Hojas": {"nombre": "Hojas", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png", "costo": 180, "descripcion": "Entrenadora experta en recolección.", "trait": "+2 Poké-Coins extra por acierto", "bonus_monedas": 2},
-    "Azul": {"nombre": "Azul", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png", "costo": 350, "descripcion": "El rival definitivo y arrogante.", "trait": "+5 Poké-Coins extra por acierto", "bonus_monedas": 5},
-    "Cintia": {"nombre": "Cintia", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 700, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "+10 Poké-Coins extra por acierto y x2 Shiny", "bonus_monedas": 10}
+    "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Ganancia estándar"},
+    "Brock": {"nombre": "Brock", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/brock.png", "costo": 100, "descripcion": "Líder de Ciudad Plateada.", "trait": "+1 Poké-Coin extra por acierto", "bonus_monedas": 1},
+    "Misty": {"nombre": "Misty", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/misty.png", "costo": 150, "descripcion": "La sirena juguetona de Celeste.", "trait": "+2 Poké-Coins extra por acierto", "bonus_monedas": 2},
+    "Hojas": {"nombre": "Hojas", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png", "costo": 300, "descripcion": "Entrenadora experta en recolección.", "trait": "+3 Poké-Coins extra por acierto", "bonus_monedas": 3},
+    "Azul": {"nombre": "Azul", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png", "costo": 500, "descripcion": "El rival definitivo y arrogante.", "trait": "+5 Poké-Coins extra por acierto", "bonus_monedas": 5},
+    "Cintia": {"nombre": "Cintia", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 900, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "+8 Poké-Coins extra por acierto y x2 Shiny", "bonus_monedas": 8}
 }
 
 def agregar_notificacion(texto, tipo="success"):
@@ -191,8 +195,8 @@ def verificar_reajustar_misiones():
     if st.session_state.get("ultimo_dia_mision", "") != hoy_str:
         st.session_state["ultimo_dia_mision"] = hoy_str
         st.session_state["misiones_dia"] = {
-            "mision_1": {"desc": "Consigue 5 aciertos hoy", "meta": 5, "actual": 0, "recompensa": 60, "completada": False},
-            "mision_2": {"desc": "Registra 3 Pokémon en tu Pokédex", "meta": 3, "actual": 0, "recompensa": 50, "completada": False}
+            "mision_1": {"desc": "Consigue 5 aciertos hoy", "meta": 5, "actual": 0, "recompensa": 50, "completada": False},
+            "mision_2": {"desc": "Registra 3 Pokémon en tu Pokédex", "meta": 3, "actual": 0, "recompensa": 40, "completada": False}
         }
         guardar_progreso()
 
@@ -287,7 +291,7 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int):
         return {"id": poke_id, "nombre": nombre, "gen": gen, "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones}
     except: return None
 
-# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR ---
+# --- PERFIL DE ENTRENADOR ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 
 st.markdown(f"""
@@ -310,22 +314,22 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- REPRODUCTOR DE MÚSICA Y EFECTOS DE SONIDO (MEJORADO) ---
+# --- REPRODUCTOR DE MÚSICA CHIPTUNE ---
 with st.expander("🎵 Reproductor de Música Arcade Chiptune & Audio Retro", expanded=False):
     col_aud1, col_aud2 = st.columns([3, 1])
     with col_aud1:
         st.audio("https://vgmsite.com/soundtracks/pokemon-red-blue-yellow-gb/101-opening.mp3", format="audio/mp3", loop=True)
-        st.caption("Disfruta de la banda sonora clásica de 8 bits mientras juegas.")
+        st.caption("Banda sonora clásica de 8 bits.")
     with col_aud2:
-        if st.button("🔔 Test Sonido de Éxito"):
+        if st.button("🔔 Test Sonido"):
             st.toast("✨ ¡Sonido Arcade reproducido!", icon="🔊")
 
-# --- MENÚ DE PESTAÑAS ---
+# --- PESTAÑAS PRINCIPALES ---
 tab_jugar, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_misiones, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "🥚 Guardería", "🎴 Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
-# --- 1. SECCIÓN JUGAR ---
+# --- 1. JUGAR ---
 with tab_jugar:
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
@@ -397,8 +401,7 @@ with tab_jugar:
                         st.session_state["racha"] += 1
                         st.session_state["aciertos_totales"] += 1
                         
-                        # Recompensa basada en el entrenador seleccionado
-                        ganancia_monedas = 5 + ent_actual.get("bonus_monedas", 0)
+                        ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
                         st.session_state["monedas"] += ganancia_monedas
                         
                         avanzar_progreso_mision("mision_1", 1)
@@ -425,7 +428,7 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. SECCIÓN GUARDERÍA ---
+# --- 2. GUARDERÍA ---
 with tab_guarderia:
     st.title("🥚 Guardería Pokémon")
     st.write("¡Incuba tus huevos ganando aciertos en las partidas arcade y hazlos eclosionar!")
@@ -449,21 +452,36 @@ with tab_guarderia:
                 st.caption("💡 Juega partidas de Adivinanza para avanzar los pasos de este huevo.")
             st.divider()
 
-# --- 3. SECCIÓN CARTAS TCG (DISEÑO MEJORADO Y RAREZAS) ---
+# --- 3. CARTAS TCG (CON ANIMACIÓN DE APERTURA MEJORADA) ---
 with tab_tcg:
     st.title("🎴 Álbum de Cartas TCG")
     st.write("¡Colecciona cartas únicas comprando sobres en el mercado!")
     st.divider()
     
+    # Mostrar la última carta recién abierta con animación especial si existe
+    if st.session_state["carta_recien_abierta"]:
+        c_rec = st.session_state["carta_recien_abierta"]
+        st.balloons()
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #2b32b2 0%, #1f4068 100%); border-radius: 16px; padding: 20px; text-align: center; border: 3px solid #ffcc00; margin-bottom: 25px;">
+            <h3 style="color: #ffcc00; margin-top: 0;">🎉 ¡NUEVA CARTA OBTENIDA! 🎉</h3>
+            <img src="{c_rec['imagen']}" width="140" style="border-radius:10px; background: rgba(255,255,255,0.1); padding: 6px;">
+            <h4 style="color:white; margin:10px 0 5px 0;">{c_rec['nombre']}</h4>
+            <p style="color:#00e676; font-weight:bold; margin:0;">Rareza: {c_rec['rareza']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✨ Guardar en el Álbum"):
+            st.session_state["carta_recien_abierta"] = None
+            st.rerun()
+        st.divider()
+
     if not st.session_state["cartas_coleccion"]:
         st.info("📦 Tu álbum está vacío. ¡Adquiere sobres de cartas en el **Mercado** para empezar a coleccionar!")
     else:
         cols = st.columns(3)
         for idx, carta in enumerate(st.session_state["cartas_coleccion"]):
             col = cols[idx % 3]
-            
-            # Colores distintivos según la rareza
-            color_rareza = "#a0a0a0" # Común
+            color_rareza = "#a0a0a0"
             if carta['rareza'] == "Rara": color_rareza = "#4facfe"
             elif carta['rareza'] == "Holográfica": color_rareza = "#fa709a"
             elif carta['rareza'] == "Ultra Rara": color_rareza = "#ffcc00"
@@ -471,13 +489,13 @@ with tab_tcg:
             with col:
                 st.markdown(f"""
                 <div class="card-tcg">
-                    <img src="{carta['imagen']}" width="110" style="border-radius:8px; background: rgba(255,255,255,0.05); padding: 5px;">
-                    <h4 style="margin:8px 0 4px 0; color:white; font-size:16px;">{carta['nombre']}</h4>
-                    <p style="margin:0; color:{color_rareza}; font-size:13px; font-weight:bold;">★ {carta['rareza']}</p>
+                    <img src="{carta['imagen']}" width="100" style="border-radius:8px; background: rgba(255,255,255,0.05); padding: 4px;">
+                    <h4 style="margin:8px 0 4px 0; color:white; font-size:15px;">{carta['nombre']}</h4>
+                    <p style="margin:0; color:{color_rareza}; font-size:12px; font-weight:bold;">★ {carta['rareza']}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-# --- 4. SECCIÓN ENTRENADORES (BALANCE DE PRECIOS) ---
+# --- 4. ENTRENADORES ---
 with tab_entrenadores:
     st.title("👥 Entrenadores")
     st.write("Desbloquea y selecciona entrenadores con bonificaciones especiales para tus partidas.")
@@ -512,7 +530,7 @@ with tab_entrenadores:
                         st.error("❌ Monedas insuficientes")
         st.divider()
 
-# --- 5. SECCIÓN MERCADO (DISEÑO RENOVADO) ---
+# --- 5. MERCADO ---
 with tab_mercado:
     st.title("🛒 Bazar de Objetos y TCG")
     st.write(f"🪙 Tus Monedas Disponibles: **{st.session_state['monedas']}**")
@@ -524,7 +542,7 @@ with tab_mercado:
         st.markdown("""
         <div class="shop-card">
             <h3>🥚 Huevo Normal</h3>
-            <p style="color:#aaa; font-size:13px;">Requiere 10 aciertos para eclosionar. Probabilidad estándar de Shiny.</p>
+            <p style="color:#aaa; font-size:13px;">Requiere 10 aciertos para eclosionar.</p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Comprar (🪙 75)", key="b_h_norm", use_container_width=True):
@@ -540,7 +558,7 @@ with tab_mercado:
         st.markdown("""
         <div class="shop-card">
             <h3>✨ Huevo Shiny</h3>
-            <p style="color:#aaa; font-size:13px;">Alta probabilidad de Shiny (5 aciertos para eclosionar).</p>
+            <p style="color:#aaa; font-size:13px;">Alta probabilidad de Shiny (5 aciertos).</p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Comprar (🪙 200)", key="b_h_shiny", use_container_width=True):
@@ -556,12 +574,12 @@ with tab_mercado:
         st.markdown("""
         <div class="shop-card">
             <h3>🎴 Sobre TCG</h3>
-            <p style="color:#aaa; font-size:13px;">Contiene 1 carta coleccionable aleatoria con distintas rarezas.</p>
+            <p style="color:#aaa; font-size:13px;">Abre un sobre y descubre una carta coleccionable.</p>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("Comprar (🪙 90)", key="b_sobre_tcg", use_container_width=True):
-            if st.session_state["monedas"] >= 90:
-                st.session_state["monedas"] -= 90
+        if st.button("Comprar (🪙 80)", key="b_sobre_tcg", use_container_width=True):
+            if st.session_state["monedas"] >= 80:
+                st.session_state["monedas"] -= 80
                 poke_id = random.randint(1, 151)
                 res_p = obtener_datos_pokemon(poke_id)
                 res_s = obtener_datos_especie(poke_id)
@@ -569,13 +587,14 @@ with tab_mercado:
                     nombre = limpiar_nombre_pokemon(res_s["name"])
                     rareza = random.choices(["Común", "Rara", "Holográfica", "Ultra Rara"], weights=[60, 25, 12, 3])[0]
                     img = res_p["sprites"]["front_default"]
-                    st.session_state["cartas_coleccion"].append({"nombre": nombre, "rareza": rareza, "imagen": img})
+                    nueva_carta = {"nombre": nombre, "rareza": rareza, "imagen": img}
+                    st.session_state["cartas_coleccion"].append(nueva_carta)
+                    st.session_state["carta_recien_abierta"] = nueva_carta
                     guardar_progreso()
-                    st.success(f"🎴 ¡Abriste un sobre y obtuviste a **{nombre}** ({rareza})!")
                     st.rerun()
             else: st.error("❌ Monedas insuficientes")
 
-# --- 6. SECCIÓN MISIONES ---
+# --- 6. MISIONES ---
 with tab_misiones:
     st.title("📜 Misiones del Profesor Oak")
     verificar_reajustar_misiones()
@@ -583,7 +602,7 @@ with tab_misiones:
         estado = "✅ ¡Completada!" if m_data["completada"] else f"⏳ Progreso: {m_data['actual']} / {m_data['meta']}"
         st.info(f"**{m_data['desc']}**\nRecompensa: 🪙 {m_data['recompensa']}\n*{estado}*")
 
-# --- 7. SECCIÓN POKÉDEX ---
+# --- 7. POKÉDEX ---
 with tab_pokedex:
     st.title("📖 Tu Pokédex Web")
     st.write(f"Pokémon registrados: **{len(st.session_state['pokedex_capturados'])} / 1025**")
@@ -594,7 +613,7 @@ with tab_pokedex:
         with c2: st.write(f"### #{pid:03d} - {data['nombre']}")
         st.divider()
 
-# --- 8. SECCIÓN SHINYDEV ---
+# --- 8. SHINYDEV ---
 with tab_shinydex:
     st.title("✨ ShinyDex")
     for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
@@ -603,7 +622,7 @@ with tab_shinydex:
         with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
         st.divider()
 
-# --- 9. SECCIÓN ESTADÍSTICAS ---
+# --- 9. ESTADÍSTICAS ---
 with tab_stats:
     st.title("📊 Estadísticas")
     comprobar_logros()
@@ -614,9 +633,22 @@ with tab_stats:
         if st.session_state["logros"].get(clave, False):
             st.success(f"**{datos['titulo']}** — {datos['desc']}")
 
-# --- 10. SECCIÓN AJUSTES ---
+# --- 10. AJUSTES MEJORADOS ---
 with tab_ajustes:
-    st.title("⚙️ Ajustes")
-    if st.button("🗑️ Borrar Todo el Progreso", type="secondary"):
-        if os.path.exists(ARCHIVO_GUARDADO): os.remove(ARCHIVO_GUARDADO)
-        st.rerun()
+    st.title("⚙️ Ajustes y Gestión de Datos")
+    st.write("Configura opciones avanzadas o limpia tus datos guardados.")
+    st.divider()
+    
+    st.subheader("🛠️ Opciones de Datos")
+    col_aj1, col_aj2 = st.columns(2)
+    with col_aj1:
+        if st.button("🗑️ Borrar Progreso de Partida", type="secondary", use_container_width=True):
+            if os.path.exists(ARCHIVO_GUARDADO): os.remove(ARCHIVO_GUARDADO)
+            st.success("✅ Se han borrado los datos correctamente.")
+            st.rerun()
+    with col_aj2:
+        if st.button("🪙 Dar Bono de Prueba (+100 Monedas)", use_container_width=True):
+            st.session_state["monedas"] += 100
+            guardar_progreso()
+            st.success("✅ ¡Se han añadido 100 Poké-Coins de prueba!")
+            st.rerun()
