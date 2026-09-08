@@ -100,7 +100,7 @@ def cargar_progreso():
                 companero_id = datos.get("companero_id", 25)
                 companero_shiny = datos.get("companero_shiny", False)
                 return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny
-        except:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
     return {}, {}, 0, {}, 0, 0, 150, "Rojo", ["Rojo"], [], [], 25, False
 
@@ -123,7 +123,7 @@ def guardar_progreso():
     try:
         with open(ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False, indent=4)
-    except:
+    except (OSError, TypeError, ValueError):
         pass
 
 if "pokedex_capturados" not in st.session_state:
@@ -222,7 +222,8 @@ def comprobar_logros():
                     st.session_state["monedas"] += 100
                     guardar_progreso()
                     agregar_notificacion(f"🏆 ¡LOGRO: {datos['titulo']}! (+100 Poké-Coins)", "warning")
-            except: pass
+            except (KeyError, TypeError, ValueError):
+                pass
 
 def avanzar_huevos():
     for h in st.session_state["huevos"]:
@@ -350,10 +351,19 @@ def _crear_opciones_nombres(min_id, max_id, poke_id, nombre_correcto, cantidad=4
 
 def _crear_opciones_tipo(min_id, max_id, poke_id, nombre_correcto, combinacion_correcta, cantidad=4):
     """Crea 4 Pokémon únicos; los 3 incorrectos jamás comparten la combinación de tipos correcta."""
+    datos_correctos = obtener_datos_pokemon(poke_id)
+    imagen_correcta = (
+        datos_correctos.get("sprites", {}).get("front_default")
+        if datos_correctos else None
+    )
+    if not imagen_correcta:
+        return None
+
     opciones = [{
         "nombre": nombre_correcto,
         "id": poke_id,
-        "es_correcto": True
+        "es_correcto": True,
+        "imagen_url": imagen_correcta
     }]
     ids_usados = {poke_id}
     nombres_usados = {nombre_correcto.casefold()}
@@ -487,9 +497,11 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                 opciones = [f"Generación {i}" for i in range(1, 10)]
                 respuesta_correcta = f"Generación {gen}"
                 erroneas = [o for o in opciones if o != respuesta_correcta]
-                opciones = random.sample(erroneas, 3) + [respuesta_correcta]
+                opciones = random.sample(erroneas, min(3, len(erroneas))) + [respuesta_correcta]
                 random.shuffle(opciones)
                 opciones_data = [{"nombre": op} for op in opciones]
+                if len({op["nombre"] for op in opciones_data}) != 4:
+                    continue
 
             # --- MODO CLÁSICO / SILUETA ---
             else:
@@ -981,19 +993,22 @@ with tab_mercado:
         """, unsafe_allow_html=True)
         if st.button("Comprar (🪙 80)", key="b_sobre", use_container_width=True):
             if st.session_state["monedas"] >= 80:
-                st.session_state["monedas"] -= 80
                 poke_id = random.randint(1, 151)
                 res_p = obtener_datos_pokemon(poke_id)
                 res_s = obtener_datos_especie(poke_id)
-                if res_p and res_s:
+                img = res_p.get("sprites", {}).get("front_default") if res_p else None
+                if res_p and res_s and img:
                     nombre = limpiar_nombre_pokemon(res_s["name"])
                     rareza = random.choices(["Común", "Rara", "Holográfica", "Ultra Rara"], weights=[60, 25, 12, 3])[0]
-                    img = res_p["sprites"]["front_default"]
                     nueva_carta = {"nombre": nombre, "rareza": rareza, "imagen": img}
+                    st.session_state["monedas"] -= 80
                     st.session_state["carta_recien_abierta"] = nueva_carta
                     guardar_progreso()
                     st.rerun()
-            else: st.error("❌ Monedas insuficientes")
+                else:
+                    st.error("⚠️ No se pudo abrir el sobre. No se han descontado monedas; inténtalo de nuevo.")
+            else:
+                st.error("❌ Monedas insuficientes")
 
 # --- 6. POKÉDEX ---
 with tab_pokedex:
@@ -1090,6 +1105,44 @@ with tab_ajustes:
     st.divider()
     st.subheader("🛠️ Gestión de Datos")
     if st.button("🗑️ Borrar Progreso de Partida", type="secondary", use_container_width=True):
-        if os.path.exists(ARCHIVO_GUARDADO): os.remove(ARCHIVO_GUARDADO)
+        if os.path.exists(ARCHIVO_GUARDADO):
+            try:
+                os.remove(ARCHIVO_GUARDADO)
+            except OSError as exc:
+                st.error(f"❌ No se pudo borrar el archivo de progreso: {exc}")
+                st.stop()
+
+        # Limpiar también la memoria de Streamlit; si no, el progreso viejo
+        # volvería a aparecer hasta reiniciar manualmente la sesión.
+        valores_iniciales = {
+            "pokedex_capturados": {},
+            "shinydex_capturados": {},
+            "racha_maxima": 0,
+            "logros": {},
+            "aciertos_totales": 0,
+            "fallos_totales": 0,
+            "monedas": 150,
+            "entrenador_actual": "Rojo",
+            "entrenadores_desbloqueados": ["Rojo"],
+            "huevos": [],
+            "cartas_coleccion": [],
+            "companero_id": 25,
+            "companero_shiny": False,
+            "racha": 0,
+            "puntos": 0,
+            "derrota": False,
+            "ultimo_pokemon_fallado": None,
+            "en_partida": False,
+            "modo_juego": None,
+            "rango_gens": (1, 151),
+            "vistos_partida": set(),
+            "ultima_notificacion": None,
+            "carta_recien_abierta": None,
+            "mostrar_consola_trucos": False,
+            "pokemon_actual": None
+        }
+        for clave, valor in valores_iniciales.items():
+            st.session_state[clave] = valor
+
         st.success("✅ Se han restablecido los datos correctamente.")
         st.rerun()
