@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS PARA TRANSICIÓN SUAVE (SMOOTH) SIN GLITCHES ---
+# --- ESTILOS CSS PARA UNA INTERFAZ FLUIDA ---
 st.markdown("""
 <style>
     .stApp {
@@ -310,7 +310,7 @@ def obtener_pregunta_tipos(min_id: int, max_id: int):
     return None
 
 # --- MENÚ LATERAL ---
-opcion_menu = st.sidebar.radio("🧭 Menú Principal", ["🎮 Jugar Partida", "🏆 Reto Regional (Name All)", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas y Logros", "⚙️ Ajustes"])
+opcion_menu = st.sidebar.radio("🧭 Menú Principal", ["🎮 Jugar Partida", "🏆 Reto Regional (Name All)", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas y Logros", "⚙️ Ajustes"], key="menu_principal_radio")
 
 # --- SECCIÓN POKÉDEX ---
 if opcion_menu == "📖 Pokédex":
@@ -318,11 +318,11 @@ if opcion_menu == "📖 Pokédex":
     st.write(f"Pokémon registrados: **{len(st.session_state['pokedex_capturados'])} / 1025**")
     
     if st.session_state["pokedex_capturados"]:
-        tipo_filtro = st.radio("Filtrar:", ["🌟 Ver todos", "🔢 Filtrar por ID", "🗺️ Filtrar por Región"], horizontal=True)
+        tipo_filtro = st.radio("Filtrar:", ["🌟 Ver todos", "🔢 Filtrar por ID", "🗺️ Filtrar por Región"], horizontal=True, key="filtro_pokedex")
         registros = st.session_state["pokedex_capturados"]
         
         if tipo_filtro == "🔢 Filtrar por ID":
-            id_buscado = st.number_input("Número ID:", min_value=1, max_value=1025, value=1)
+            id_buscado = st.number_input("Número ID:", min_value=1, max_value=1025, value=1, key="num_id_pokedex")
             if id_buscado in registros:
                 p = registros[id_buscado]
                 st.success("✅ ¡Registrado!")
@@ -333,7 +333,7 @@ if opcion_menu == "📖 Pokédex":
                 st.warning(f"❌ Aún no tienes el Pokémon #{id_buscado:03d}.")
                 
         elif tipo_filtro == "🗺️ Filtrar por Región":
-            reg = st.selectbox("Región:", list(GENERACIONES.values()), format_func=lambda x: f"{x['emoji']} {x['nombre']}")
+            reg = st.selectbox("Región:", list(GENERACIONES.values()), format_func=lambda x: f"{x['emoji']} {x['nombre']}", key="sel_reg_pokedex")
             gen_target = [k for k, v in GENERACIONES.items() if v == reg][0]
             filtrados = [(pid, data) for pid, data in sorted(registros.items()) if data["gen"] == gen_target]
             
@@ -374,8 +374,8 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
     st.divider()
     
     if not st.session_state["reto_activo"]:
-        reg_elegida = st.selectbox("Selecciona la región para el reto:", list(GENERACIONES.keys()), format_func=lambda x: f"{GENERACIONES[x]['emoji']} {GENERACIONES[x]['nombre']} ({GENERACIONES[x]['rango'][0]} - {GENERACIONES[x]['rango'][1]})")
-        if st.button("🚀 ¡Comenzar Reto Regional!", type="primary", use_container_width=True):
+        reg_elegida = st.selectbox("Selecciona la región para el reto:", list(GENERACIONES.keys()), format_func=lambda x: f"{GENERACIONES[x]['emoji']} {GENERACIONES[x]['nombre']} ({GENERACIONES[x]['rango'][0]} - {GENERACIONES[x]['rango'][1]})", key="sel_reto_reg")
+        if st.button("🚀 ¡Comenzar Reto Regional!", type="primary", use_container_width=True, key="btn_comenzar_reto"):
             st.session_state["reto_activo"] = True
             st.session_state["reto_region"] = reg_elegida
             st.session_state["reto_adivinados"] = set()
@@ -419,7 +419,7 @@ elif opcion_menu == "🏆 Reto Regional (Name All)":
                     st.info(f"#{pid}\n❓")
                     
         st.divider()
-        if st.button("🚪 Abandonar Reto", use_container_width=True):
+        if st.button("🚪 Abandonar Reto", use_container_width=True, key="btn_abandonar_reto"):
             st.session_state["reto_activo"] = False
             st.session_state["reto_adivinados"].clear()
             st.rerun()
@@ -458,7 +458,7 @@ elif opcion_menu == "📊 Estadísticas y Logros":
 # --- SECCIÓN AJUSTES ---
 elif opcion_menu == "⚙️ Ajustes":
     st.title("⚙️ Ajustes")
-    if st.button("🗑️ Borrar Todo el Progreso", type="secondary"):
+    if st.button("🗑️ Borrar Todo el Progreso", type="secondary", key="btn_borrar_progreso"):
         for k in ["pokedex_capturados", "shinydex_capturados", "logros", "vistos_partida"]:
             st.session_state[k].clear()
         for k in ["racha_maxima", "aciertos_totales", "fallos_totales", "partidas_perdidas", "shinies_vistos", "racha", "puntos"]:
@@ -483,7 +483,7 @@ if st.session_state["derrota"]:
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🔄 Reintentar", type="primary", use_container_width=True):
+        if st.button("🔄 Reintentar", type="primary", use_container_width=True, key="btn_reintentar_derrota"):
             st.session_state["derrota"] = False
             st.session_state["puntos"] = 0
             st.session_state["racha"] = 0
@@ -494,7 +494,7 @@ if st.session_state["derrota"]:
             st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
             st.rerun()
     with c2:
-        if st.button("🏠 Menú Principal", use_container_width=True):
+        if st.button("🏠 Menú Principal", use_container_width=True, key="btn_menu_derrota"):
             st.session_state["derrota"] = False
             st.session_state["en_partida"] = False
             st.rerun()
@@ -506,10 +506,10 @@ if not st.session_state["en_partida"]:
     st.write("✨ *¡Pon a prueba tus conocimientos Pokémon al máximo nivel!* ✨")
     st.divider()
     
-    filtro_gen = st.radio("🌍 1. Selecciona el filtro de generaciones:", ["🌟 Todas (Gen 1-9)", "🔴 Clásicas (Gen 1 - 3)", "💎 Intermedias (Gen 4 - 6)", "⚔️ Recientes (Gen 7 - 9)"])
-    modo_juego = st.radio("🎯 2. Elige el modo de juego:", ["🏷️ Adivina Nombre", "🌍 Adivina Generación", "🧪 Adivina por Tipos"])
+    filtro_gen = st.radio("🌍 1. Selecciona el filtro de generaciones:", ["🌟 Todas (Gen 1-9)", "🔴 Clásicas (Gen 1 - 3)", "💎 Intermedias (Gen 4 - 6)", "⚔️ Recientes (Gen 7 - 9)"], key="filtro_gen_menu")
+    modo_juego = st.radio("🎯 2. Elige el modo de juego:", ["🏷️ Adivina Nombre", "🌍 Adivina Generación", "🧪 Adivina por Tipos"], key="modo_juego_menu")
     
-    if st.button("🚀 ¡Comenzar Partida Ya!", type="primary", use_container_width=True):
+    if st.button("🚀 ¡Comenzar Partida Ya!", type="primary", use_container_width=True, key="btn_comenzar_partida"):
         st.session_state["en_partida"] = True
         st.session_state["puntos"] = 0
         st.session_state["racha"] = 0
@@ -580,6 +580,7 @@ else:
                 
             st.subheader("¿Cuál de estos Pokémon es el correcto?")
             
+            # --- CORRECCIÓN CLAVE DE COLUMNAS PARA EVITAR MULTIPLICACIÓN ---
             for i in range(0, len(poke["opciones"]), 2):
                 cols = st.columns(2)
                 for j in range(2):
@@ -631,12 +632,12 @@ else:
             gens_permitidas = st.session_state["generaciones_permitidas"]
             filas_gens = [gens_permitidas[i:i + 3] for i in range(0, len(gens_permitidas), 3)]
             
-            for fila in filas_gens:
+            for fila_idx, fila in enumerate(filas_gens):
                 cols_fila = st.columns(len(fila))
                 for idx, g_num in enumerate(fila):
                     g_info = GENERACIONES[g_num]
                     with cols_fila[idx]:
-                        if st.button(f"{g_info['emoji']} Gen {g_num} ({g_info['nombre']})", use_container_width=True, key=f"btn_gen_{ronda_key}_{g_num}"):
+                        if st.button(f"{g_info['emoji']} Gen {g_num} ({g_info['nombre']})", use_container_width=True, key=f"btn_gen_{ronda_key}_{fila_idx}_{idx}_{g_num}"):
                             if g_num == poke["gen"]:
                                 st.session_state["puntos"] += 1
                                 st.session_state["racha"] += 1
@@ -704,7 +705,7 @@ else:
                                     st.rerun()
 
     st.divider()
-    if st.button("🏠 Volver al Menú Principal", use_container_width=True):
+    if st.button("🏠 Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_activo"):
         st.session_state["en_partida"] = False
         st.session_state["derrota"] = False
         st.rerun()
