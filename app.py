@@ -305,7 +305,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
         
         # --- NUEVA LÓGICA MODO TIPO: 2 TIPOS Y 4 OPCIONES DE POKÉMON CON ICONOS ---
         if modo == "tipo":
-            # Buscamos un Pokémon que tenga exactamente 2 tipos para que el reto sea dinámico
             intentos_bucle = 0
             while len(tipos) < 2 and intentos_bucle < 15:
                 intentos_bucle += 1
@@ -317,11 +316,9 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     gen = int(res_species["generation"]["url"].split("/")[-2])
                     tipos = [t["type"]["name"] for t in res_poke["types"]]
             
-            # Si tras los intentos sigue teniendo 1 solo tipo, lo manejamos igual
             tipos_capitalizados = [t.capitalize() for t in tipos]
             texto_tipos = " / ".join(tipos_capitalizados)
             
-            # Generamos 3 Pokémon erróneos que NO tengan esa combinación exacta
             ids_erroneos = []
             while len(ids_erroneos) < 3:
                 rid = random.randint(min_id, max_id)
@@ -329,7 +326,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     ids_erroneos.append(rid)
             
             opciones_data = []
-            # Añadimos el correcto
             opciones_data.append({
                 "nombre": nombre,
                 "id": poke_id,
@@ -337,7 +333,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                 "imagen_url": res_poke["sprites"]["front_default"]
             })
             
-            # Añadimos los 3 incorrectos
             for eid in ids_erroneos:
                 r_spec_err = obtener_datos_especie(eid)
                 r_poke_err = obtener_datos_pokemon(eid)
@@ -594,7 +589,6 @@ with tab_jugar:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Mostramos 4 opciones de Pokémon, cada una con su icono visual
                 cols_opc = st.columns(2)
                 for idx, opc in enumerate(poke["opciones_tipo"]):
                     col_target = cols_opc[idx % 2]
@@ -604,7 +598,8 @@ with tab_jugar:
                             <img src="{opc['imagen_url']}" width="90">
                         </div>
                         """, unsafe_allow_html=True)
-                        if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{idx}"):
+                        # Clave única corregida con el ID del Pokémon
+                        if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{poke['id']}_{idx}"):
                             if opc["es_correcto"]:
                                 st.session_state["puntos"] += 1
                                 st.session_state["racha"] += 1
@@ -628,7 +623,6 @@ with tab_jugar:
                                 st.session_state["derrota"] = True
                                 st.rerun()
             else:
-                # Modos clásicos de una sola imagen central
                 c1, c2, c3 = st.columns([1, 2, 1])
                 with c2:
                     if poke["imagen"]: st.image(poke["imagen"], width=280)
@@ -642,7 +636,8 @@ with tab_jugar:
                 
                 for idx, opc_item in enumerate(poke["opciones"]):
                     opc_nombre = opc_item["nombre"]
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
+                    # Clave única corregida con el ID del Pokémon
+                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{poke['id']}_{idx}"):
                         if opc_nombre == poke["respuesta_correcta"]:
                             st.session_state["puntos"] += 1
                             st.session_state["racha"] += 1
