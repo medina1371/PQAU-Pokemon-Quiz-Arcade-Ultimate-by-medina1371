@@ -12,17 +12,30 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS LIMPIOS PARA TRANSICIONES SUAVES (SIN GLITCHES) ---
+# --- ESTILOS CSS PARA TRANSICIÓN SUAVE (SMOOTH) SIN GLITCHES ---
 st.markdown("""
 <style>
-    /* Transición suave para botones y elementos interactivos */
+    /* Suavizado general para evitar parpadeos visuales al recargar */
+    .stApp {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0.85; }
+        to { opacity: 1; }
+    }
+
+    /* Animación fluida para los botones de opciones */
     div.stButton > button {
-        transition: all 0.25s ease-in-out !important;
-        border-radius: 8px !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+    }
+    div.stButton > button:active {
+        transform: translateY(0px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -86,6 +99,7 @@ if "rango_seleccionado" not in st.session_state: st.session_state["rango_selecci
 if "generaciones_permitidas" not in st.session_state: st.session_state["generaciones_permitidas"] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
+if "id_ronda" not in st.session_state: st.session_state["id_ronda"] = random.randint(0, 1000000)
 
 if "reto_activo" not in st.session_state: st.session_state["reto_activo"] = False
 if "reto_region" not in st.session_state: st.session_state["reto_region"] = None
@@ -478,6 +492,7 @@ if st.session_state["derrota"]:
             st.session_state["racha"] = 0
             st.session_state["vistos_partida"].clear()
             st.session_state["siguiente_pokemon_cache"] = None
+            st.session_state["id_ronda"] = random.randint(0, 1000000)
             rango = st.session_state["rango_seleccionado"]
             st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
             st.rerun()
@@ -504,6 +519,7 @@ if not st.session_state["en_partida"]:
         st.session_state["vistos_partida"].clear()
         st.session_state["siguiente_pokemon_cache"] = None
         st.session_state["modo_seleccionado"] = modo_juego
+        st.session_state["id_ronda"] = random.randint(0, 1000000)
         
         if filtro_gen == "🔴 Clásicas (Gen 1 - 3)":
             st.session_state["rango_seleccionado"] = (1, 386)
@@ -568,10 +584,12 @@ else:
             cols_opc1 = st.columns(2)
             cols_opc2 = st.columns(2)
             
+            # Generamos claves dinámicas usando id_ronda para evitar glitches o colisiones de estado en Streamlit
+            ronda_key = st.session_state["id_ronda"]
             for idx, opc_nombre in enumerate(poke["opciones"]):
                 col_actual = cols_opc1[0] if idx == 0 else (cols_opc1[1] if idx == 1 else (cols_opc2[0] if idx == 2 else cols_opc2[1]))
                 with col_actual:
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
+                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{ronda_key}_{idx}"):
                         if opc_nombre == poke["nombre"]:
                             st.session_state["puntos"] += 1
                             st.session_state["racha"] += 1
@@ -580,6 +598,7 @@ else:
                                 st.session_state["racha_maxima"] = st.session_state["racha"]
                             guardar_progreso()
                             agregar_notificacion(f"¡Correcto! Era {poke['nombre']}", "success")
+                            st.session_state["id_ronda"] = random.randint(0, 1000000)
                             st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
                             st.rerun()
                         else:
@@ -614,12 +633,13 @@ else:
             gens_permitidas = st.session_state["generaciones_permitidas"]
             filas_gens = [gens_permitidas[i:i + 3] for i in range(0, len(gens_permitidas), 3)]
             
+            ronda_key = st.session_state["id_ronda"]
             for fila in filas_gens:
                 cols_fila = st.columns(len(fila))
                 for idx, g_num in enumerate(fila):
                     g_info = GENERACIONES[g_num]
                     with cols_fila[idx]:
-                        if st.button(f"{g_info['emoji']} Gen {g_num} ({g_info['nombre']})", use_container_width=True, key=f"btn_gen_{g_num}"):
+                        if st.button(f"{g_info['emoji']} Gen {g_num} ({g_info['nombre']})", use_container_width=True, key=f"btn_gen_{ronda_key}_{g_num}"):
                             if g_num == poke["gen"]:
                                 st.session_state["puntos"] += 1
                                 st.session_state["racha"] += 1
@@ -628,6 +648,7 @@ else:
                                     st.session_state["racha_maxima"] = st.session_state["racha"]
                                 guardar_progreso()
                                 agregar_notificacion(f"¡Correcto! Gen {poke['gen']}", "success")
+                                st.session_state["id_ronda"] = random.randint(0, 1000000)
                                 st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
                                 st.rerun()
                             else:
@@ -656,12 +677,13 @@ else:
             cols_t1 = st.columns(2)
             cols_t2 = st.columns(2)
             
+            ronda_key = st.session_state["id_ronda"]
             for idx, opc in enumerate(pregunta["opciones"]):
                 col_actual = cols_t1[0] if idx == 0 else (cols_t1[1] if idx == 1 else (cols_t2[0] if idx == 2 else cols_t2[1]))
                 with col_actual:
                     img_mini = opc["imagen"] if isinstance(opc["imagen"], Image.Image) else Image.open(io.BytesIO(requests.get(opc["imagen"]).content))
                     st.image(img_mini, width=130)
-                    if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_{idx}"):
+                    if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_{ronda_key}_{idx}"):
                         if opc["nombre"] == pregunta["correcto"]:
                             st.session_state["puntos"] += 1
                             st.session_state["racha"] += 1
@@ -670,6 +692,7 @@ else:
                                 st.session_state["racha_maxima"] = st.session_state["racha"]
                             guardar_progreso()
                             agregar_notificacion(f"¡Correcto! {pregunta['correcto']}", "success")
+                            st.session_state["id_ronda"] = random.randint(0, 1000000)
                             st.session_state["pregunta_tipos"] = obtener_pregunta_tipos(rango[0], rango[1])
                             st.rerun()
                         else:
