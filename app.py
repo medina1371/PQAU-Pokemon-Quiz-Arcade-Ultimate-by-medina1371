@@ -519,6 +519,8 @@ else:
         if msg["tipo"] == "success": st.success(msg["texto"])
         elif msg["tipo"] == "warning": st.warning(msg["texto"])
         else: st.error(msg["texto"])
+        # Limpiamos la notificación para que no se repita eternamente
+        st.session_state["ultima_notificacion"] = None
     
     c1, c2 = st.columns(2)
     with c1: st.metric("⭐ Puntos", st.session_state["puntos"])
@@ -532,6 +534,10 @@ else:
     # --- MODO 1: ADIVINA NOMBRE ---
     if modo == "🏷️ Adivina Nombre":
         poke = st.session_state.get("pokemon_actual")
+        if not poke:
+            poke = obtener_pokemon_por_rango(rango[0], rango[1])
+            st.session_state["pokemon_actual"] = poke
+            
         if poke:
             st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
             if poke["shiny"]:
@@ -541,7 +547,8 @@ else:
                 
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                st.image(poke["imagen"], width=260)
+                if poke["imagen"]:
+                    st.image(poke["imagen"], width=260)
                 
             st.subheader("¿Cuál de estos Pokémon es el correcto?")
             cols_opc1 = st.columns(2)
@@ -573,6 +580,10 @@ else:
     # --- MODO 2: ADIVINA GENERACIÓN ---
     elif modo == "🌍 Adivina Generación":
         poke = st.session_state.get("pokemon_actual")
+        if not poke:
+            poke = obtener_pokemon_por_rango(rango[0], rango[1])
+            st.session_state["pokemon_actual"] = poke
+            
         if poke:
             st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
             if poke["shiny"]:
@@ -581,7 +592,9 @@ else:
             guardar_progreso()
                 
             c1, c2, c3 = st.columns([1, 2, 1])
-            with c2: st.image(poke["imagen"], width=260)
+            with c2: 
+                if poke["imagen"]:
+                    st.image(poke["imagen"], width=260)
                 
             st.subheader("¿A qué generación pertenece este Pokémon?")
             gens_permitidas = st.session_state["generaciones_permitidas"]
@@ -615,6 +628,10 @@ else:
     # --- MODO 3: ADIVINA POR TIPOS ---
     elif modo == "🧪 Adivina por Tipos":
         pregunta = st.session_state.get("pregunta_tipos")
+        if not pregunta:
+            pregunta = obtener_pregunta_tipos(rango[0], rango[1])
+            st.session_state["pregunta_tipos"] = pregunta
+            
         if pregunta:
             tipos_espanol = [TRADUCCION_TIPOS.get(t, t.title()) for t in pregunta["tipos"]]
             texto_tipos = " / ".join(tipos_espanol)
