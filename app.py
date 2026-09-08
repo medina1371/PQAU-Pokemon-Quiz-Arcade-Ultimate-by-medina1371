@@ -300,7 +300,22 @@ def _obtener_imagen_pokemon(res_poke, es_shiny=False):
 
 def _crear_opciones_nombres(min_id, max_id, poke_id, nombre_correcto, cantidad=4):
     """Crea opciones únicas por ID y por nombre para evitar botones duplicados."""
-    opciones = [{"nombre": nombre_correcto, "id": poke_id, "es_correcto": True}]
+    # La opción correcta también necesita imagen_url porque el render del modo
+    # Tipo muestra la imagen de TODAS las opciones.
+    datos_correctos = obtener_datos_pokemon(poke_id)
+    imagen_correcta = (
+        datos_correctos.get("sprites", {}).get("front_default")
+        if datos_correctos else None
+    )
+    if not imagen_correcta:
+        return None
+
+    opciones = [{
+        "nombre": nombre_correcto,
+        "id": poke_id,
+        "es_correcto": True,
+        "imagen_url": imagen_correcta
+    }]
     ids_usados = {poke_id}
     nombres_usados = {nombre_correcto.casefold()}
 
@@ -723,11 +738,19 @@ with tab_jugar:
                 for idx, opc in enumerate(opciones_tipo_unicas[:4]):
                     col_target = cols_opc[idx % 2]
                     with col_target:
-                        st.markdown(f"""
-                        <div style="background: #252538; border-radius: 12px; padding: 10px; text-align: center; border: 1px solid #4a4e69; margin-bottom: 10px;">
-                            <img src="{opc['imagen_url']}" width="90">
-                        </div>
-                        """, unsafe_allow_html=True)
+                        imagen_opcion = opc.get("imagen_url")
+                        if imagen_opcion:
+                            st.markdown(f"""
+                            <div style="background: #252538; border-radius: 12px; padding: 10px; text-align: center; border: 1px solid #4a4e69; margin-bottom: 10px;">
+                                <img src="{imagen_opcion}" width="90">
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown("""
+                            <div style="background: #252538; border-radius: 12px; padding: 10px; text-align: center; border: 1px solid #4a4e69; margin-bottom: 10px;">
+                                <div style="height: 90px;"></div>
+                            </div>
+                            """, unsafe_allow_html=True)
                         if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{idx}"):
                             if opc["es_correcto"]:
                                 st.session_state["puntos"] += 1
