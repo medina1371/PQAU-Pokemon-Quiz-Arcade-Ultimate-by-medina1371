@@ -303,7 +303,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
                     new_data.append((255, 255, 255, 0))
             pil_img.putdata(new_data)
         
-        # --- NUEVA LÓGICA MODO TIPO: 2 TIPOS Y 4 OPCIONES DE POKÉMON CON ICONOS ---
         if modo == "tipo":
             intentos_bucle = 0
             while len(tipos) < 2 and intentos_bucle < 15:
@@ -598,7 +597,8 @@ with tab_jugar:
                             <img src="{opc['imagen_url']}" width="90">
                         </div>
                         """, unsafe_allow_html=True)
-                        # Clave única corregida con el ID del Pokémon
+                        
+                        # CORREGIDO: Se incluye el ID del Pokémon actual para asegurar una clave única por turno
                         if st.button(f"{opc['nombre']}", use_container_width=True, key=f"btn_tipo_opc_{poke['id']}_{idx}"):
                             if opc["es_correcto"]:
                                 st.session_state["puntos"] += 1
@@ -636,7 +636,8 @@ with tab_jugar:
                 
                 for idx, opc_item in enumerate(poke["opciones"]):
                     opc_nombre = opc_item["nombre"]
-                    # Clave única corregida con el ID del Pokémon
+                    
+                    # CORREGIDO: Se incluye el ID del Pokémon actual para evitar colisiones de IDs en los botones
                     if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{poke['id']}_{idx}"):
                         if opc_nombre == poke["respuesta_correcta"]:
                             st.session_state["puntos"] += 1
