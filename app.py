@@ -23,7 +23,6 @@ st.markdown("""
         from { opacity: 0.9; }
         to { opacity: 1; }
     }
-    /* Botones más grandes y llamativos */
     div.stButton > button {
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
         border-radius: 12px !important;
@@ -37,20 +36,15 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     }
-    div.stButton > button:active {
-        transform: translateY(0px);
-    }
-    /* Pestañas superiores más grandes */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
+        gap: 8px;
     }
     .stTabs [data-baseweb="tab"] {
         border-radius: 10px 10px 0px 0px;
         font-weight: 700;
-        font-size: 16px;
-        padding: 10px 20px;
+        font-size: 15px;
+        padding: 8px 15px;
     }
-    /* Tarjeta de perfil principal ampliada */
     .perfil-card {
         background: linear-gradient(135deg, #2b32b2 0%, #1488cc 100%);
         padding: 20px;
@@ -58,6 +52,15 @@ st.markdown("""
         color: white;
         box-shadow: 0 6px 20px rgba(0,0,0,0.15);
         margin-bottom: 25px;
+    }
+    .card-tcg {
+        background: #1e1e2f;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        border: 2px solid #ffcc00;
+        box-shadow: 0 4px 15px rgba(255, 204, 0, 0.3);
+        margin-bottom: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -78,7 +81,7 @@ def cargar_progreso():
                 fallos = datos.get("fallos_totales", 0)
                 partidas_perdidas = datos.get("partidas_perdidas", 0)
                 shinies_vistos = datos.get("shinies_vistos", 0)
-                monedas = datos.get("monedas", 100)
+                monedas = datos.get("monedas", 150)
                 inventario = datos.get("inventario", {"revividores": 0, "cebos_activos": 0})
                 entrenador_actual = datos.get("entrenador_actual", "Rojo")
                 entrenadores_desbloqueados = datos.get("entrenadores_desbloqueados", ["Rojo"])
@@ -86,10 +89,12 @@ def cargar_progreso():
                 misiones_dia = datos.get("misiones_dia", {})
                 ultimo_dia_mision = datos.get("ultimo_dia_mision", "")
                 inscripciones_legendarias = datos.get("inscripciones_legendarias", [])
-                return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos, monedas, inventario, entrenador_actual, entrenadores_desbloqueados, insignias, misiones_dia, ultimo_dia_mision, inscripciones_legendarias
+                huevos = datos.get("huevos", []) # Lista de huevos en incubación
+                cartas_coleccion = datos.get("cartas_coleccion", []) # Cartas TCG obtenidas
+                return pokedex, shinydex, racha_max, logros, aciertos, fallos, partidas_perdidas, shinies_vistos, monedas, inventario, entrenador_actual, entrenadores_desbloqueados, insignias, misiones_dia, ultimo_dia_mision, inscripciones_legendarias, huevos, cartas_coleccion
         except:
             pass
-    return {}, {}, 0, {}, 0, 0, 0, 0, 100, {"revividores": 0, "cebos_activos": 0}, "Rojo", ["Rojo"], [], {}, "", []
+    return {}, {}, 0, {}, 0, 0, 0, 0, 150, {"revividores": 0, "cebos_activos": 0}, "Rojo", ["Rojo"], [], {}, "", [], [], []
 
 def guardar_progreso():
     datos = {
@@ -108,7 +113,9 @@ def guardar_progreso():
         "insignias": st.session_state["insignias"],
         "misiones_dia": st.session_state["misiones_dia"],
         "ultimo_dia_mision": st.session_state["ultimo_dia_mision"],
-        "inscripciones_legendarias": st.session_state["inscripciones_legendarias"]
+        "inscripciones_legendarias": st.session_state["inscripciones_legendarias"],
+        "huevos": st.session_state["huevos"],
+        "cartas_coleccion": st.session_state["cartas_coleccion"]
     }
     try:
         with open(ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
@@ -117,7 +124,7 @@ def guardar_progreso():
         pass
 
 if "pokedex_capturados" not in st.session_state:
-    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, pp_ini, sv_ini, mon_ini, inv_ini, ent_ini, ents_ini, ins_ini, mis_ini, udm_ini, ileg_ini = cargar_progreso()
+    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, pp_ini, sv_ini, mon_ini, inv_ini, ent_ini, ents_ini, ins_ini, mis_ini, udm_ini, ileg_ini, hue_ini, car_ini = cargar_progreso()
     st.session_state["pokedex_capturados"] = p_ini
     st.session_state["shinydex_capturados"] = s_ini
     st.session_state["racha_maxima"] = rm_ini
@@ -134,6 +141,8 @@ if "pokedex_capturados" not in st.session_state:
     st.session_state["misiones_dia"] = mis_ini
     st.session_state["ultimo_dia_mision"] = udm_ini
     st.session_state["inscripciones_legendarias"] = ileg_ini
+    st.session_state["huevos"] = hue_ini
+    st.session_state["cartas_coleccion"] = car_ini
 
 if "racha" not in st.session_state: st.session_state["racha"] = 0
 if "puntos" not in st.session_state: st.session_state["puntos"] = 0
@@ -148,7 +157,6 @@ if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notif
 if "id_ronda" not in st.session_state: st.session_state["id_ronda"] = 0
 if "ultimo_shiny" not in st.session_state: st.session_state["ultimo_shiny"] = False
 
-# Variables para Líderes de Gimnasio y Eventos
 if "en_combate_gimnasio" not in st.session_state: st.session_state["en_combate_gimnasio"] = False
 if "lider_actual" not in st.session_state: st.session_state["lider_actual"] = None
 if "gimnasio_ronda" not in st.session_state: st.session_state["gimnasio_ronda"] = 1
@@ -157,72 +165,14 @@ if "gimnasio_pokemon_actual" not in st.session_state: st.session_state["gimnasio
 
 if "evento_legendario_activo" not in st.session_state: st.session_state["evento_legendario_activo"] = False
 if "legendario_actual" not in st.session_state: st.session_state["legendario_actual"] = None
-
-if "reto_activo" not in st.session_state: st.session_state["reto_activo"] = False
-if "reto_region" not in st.session_state: st.session_state["reto_region"] = None
-if "reto_adivinados" not in st.session_state: st.session_state["reto_adivinados"] = set()
 if "siguiente_pokemon_cache" not in st.session_state: st.session_state["siguiente_pokemon_cache"] = None
 
-# --- DEFINICIÓN DE ENTRENADORES Y AVATARES OFICIALES ---
+# --- ENTRENADORES ---
 ENTRENADORES = {
-    "Rojo": {
-        "nombre": "Rojo", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png",
-        "costo": 0, "descripcion": "El campeón silencioso de Kanto.",
-        "trait": "+1 Poké-Coin extra por acierto", "efecto_monedas": 1
-    },
-    "Hojas": {
-        "nombre": "Hojas", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png",
-        "costo": 250, "descripcion": "Entrenadora experta en recolección.",
-        "trait": "+50% de probabilidad base de encontrar Pokémon Shiny", "efecto_shiny": 0.05
-    },
-    "Azul": {
-        "nombre": "Azul", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png",
-        "costo": 400, "descripcion": "El rival definitivo y arrogante.",
-        "trait": "Duplica los puntos de experiencia y racha", "efecto_puntos": 2
-    },
-    "Brock": {
-        "nombre": "Brock", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/brock.png",
-        "costo": 300, "descripcion": "Líder de roca con férrea voluntad.",
-        "trait": "Inicia cada partida con 1 Ficha de Reintento gratis", "efecto_revive": 1
-    },
-    "Misty": {
-        "nombre": "Misty", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/misty.png",
-        "costo": 350, "descripcion": "La sirena implacable de Ciudad Celeste.",
-        "trait": "+2 Poké-Coins extra por acierto", "efecto_monedas": 2
-    },
-    "Bruno": {
-        "nombre": "Bruno", "gen": 3, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/brendan.png",
-        "costo": 500, "descripcion": "Explorador de la calurosa región de Hoenn.",
-        "trait": "+10% más de probabilidad Shiny y +2 monedas por acierto",
-        "efecto_shiny": 0.10, "efecto_monedas": 2
-    },
-    "Aura": {
-        "nombre": "Aura", "gen": 3, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/may.png",
-        "costo": 500, "descripcion": "Coordinadora y entrenadora estrella de Hoenn.",
-        "trait": "+2 Poké-Coins extra y Ficha de Reintento al iniciar",
-        "efecto_monedas": 2, "efecto_revive": 1
-    },
-    "Cintia": {
-        "nombre": "Cintia", "gen": 4, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png",
-        "costo": 1000, "descripcion": "La campeona legendaria de Sinnoh.",
-        "trait": "Probabilidad de Shiny multiplicada x3 y +5 monedas por acierto",
-        "efecto_shiny": 0.15, "efecto_monedas": 5
-    },
-    "Giovanni": {
-        "nombre": "Giovanni", "gen": 1, 
-        "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/giovanni.png",
-        "costo": 1200, "descripcion": "Líder del Team Rocket y magnate de la mafia.",
-        "trait": "+10 Poké-Coins por acierto y 2 Fichas de Reintento iniciales",
-        "efecto_monedas": 10, "efecto_revive": 2
-    }
+    "Rojo": {"nombre": "Rojo", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "+1 Poké-Coin extra por acierto", "efecto_monedas": 1},
+    "Hojas": {"nombre": "Hojas", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/leaf.png", "costo": 250, "descripcion": "Entrenadora experta en recolección.", "trait": "+50% de probabilidad base de encontrar Pokémon Shiny", "efecto_shiny": 0.05},
+    "Azul": {"nombre": "Azul", "gen": 1, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/blue.png", "costo": 400, "descripcion": "El rival definitivo y arrogante.", "trait": "Duplica los puntos de experiencia y racha", "efecto_puntos": 2},
+    "Cintia": {"nombre": "Cintia", "gen": 4, "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/cynthia.png", "costo": 1000, "descripcion": "La campeona legendaria de Sinnoh.", "trait": "Probabilidad de Shiny x3 y +5 monedas por acierto", "efecto_shiny": 0.15, "efecto_monedas": 5}
 }
 
 def agregar_notificacion(texto, tipo="success"):
@@ -231,28 +181,15 @@ def agregar_notificacion(texto, tipo="success"):
 def obtener_titulo_entrenador():
     pokedex_len = len(st.session_state["pokedex_capturados"])
     racha_max = st.session_state["racha_maxima"]
-    if racha_max >= 20 or pokedex_len >= 500:
-        return "👑 Campeón Indiscutible"
-    elif pokedex_len >= 100 or racha_max >= 15:
-        return "⚡ Maestro Pokémon"
-    elif pokedex_len >= 50 or racha_max >= 10:
-        return "📘 Coleccionista Experto"
-    elif pokedex_len >= 20 or racha_max >= 5:
-        return "🐛 Cazabichos / Joven Promesa"
-    else:
-        return "🌱 Novato de Pueblo Paleta"
+    if racha_max >= 20 or pokedex_len >= 500: return "👑 Campeón Indiscutible"
+    elif pokedex_len >= 100 or racha_max >= 15: return "⚡ Maestro Pokémon"
+    elif pokedex_len >= 50 or racha_max >= 10: return "📘 Coleccionista Experto"
+    else: return "🌱 Novato de Pueblo Paleta"
 
 LOGROS_DEF = {
     "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1},
-    "coleccionista_20": {"titulo": "📦 Entrenador Novato", "desc": "Registra 20 Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 20},
-    "coleccionista_100": {"titulo": "📘 Experto Pokémon", "desc": "Registra 100 Pokémon.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 100},
     "suerte_shiny": {"titulo": "✨ ¡Suerte Variocolor!", "desc": "Encuentra y atrapa tu primer Shiny.", "condicion": lambda: len(st.session_state["shinydex_capturados"]) >= 1},
-    "racha_5": {"titulo": "🔥 En Chamba", "desc": "Alcanza una racha de 5 aciertos.", "condicion": lambda: st.session_state["racha_maxima"] >= 5},
-    "racha_15": {"titulo": "⚡ Maestro de Arcade", "desc": "Alcanza una racha de 15 aciertos.", "condicion": lambda: st.session_state["racha_maxima"] >= 15},
-    "veterano_aciertos": {"titulo": "🎯 Tirador Experto", "desc": "Consigue 50 aciertos totales.", "condicion": lambda: st.session_state["aciertos_totales"] >= 50},
-    "insomne": {"titulo": "🌙 Insomne", "desc": "Juega una partida de madrugada (00:00 a 05:00).", "condicion": lambda: 0 <= datetime.now().hour < 5},
-    "suerte_extrema": {"titulo": "🍀 Maestro de la Suerte", "desc": "Encuentra dos Pokémon Shiny seguidos.", "condicion": lambda: False},
-    "caza_legendaria": {"titulo": "🐉 Cazador de Leyendas", "desc": "Derrota y registra un Pokémon Legendario Errante.", "condicion": lambda: len(st.session_state["inscripciones_legendarias"]) >= 1}
+    "huevo_eclosionado": {"titulo": "🥚 Padre Pokémon", "desc": "Eclosiona tu primer Huevo Pokémon.", "condicion": lambda: any(h.get("eclosionado") for h in st.session_state["huevos"])}
 }
 
 def comprobar_logros():
@@ -263,9 +200,8 @@ def comprobar_logros():
                     st.session_state["logros"][clave] = True
                     st.session_state["monedas"] += 100
                     guardar_progreso()
-                    agregar_notificacion(f"🏆 ¡LOGRO DESBLOQUEADO: {datos['titulo']}! (+100 Poké-Coins)", "warning")
-            except:
-                pass
+                    agregar_notificacion(f"🏆 ¡LOGRO: {datos['titulo']}! (+100 Poké-Coins)", "warning")
+            except: pass
 
 def verificar_reajustar_misiones():
     hoy_str = datetime.now().strftime("%Y-%m-%d")
@@ -291,96 +227,77 @@ def avanzar_progreso_mision(clave_mision, cantidad=1):
                 agregar_notificacion(f"📜 ¡Misión completada: {m['desc']}! (+{m['recompensa']} Poké-Coins)", "warning")
             guardar_progreso()
 
-LIDERES_GIMNASIO = [
-    {"nombre": "Brock", "titulo": "Líder de Ciudad Plateada", "tipo": "Roca", "avatar": "🪨", "rango_ids": (1, 151)},
-    {"nombre": "Misty", "titulo": "Líder de Ciudad Celeste", "tipo": "Agua", "avatar": "💧", "rango_ids": (1, 251)},
-    {"nombre": "Lt. Surge", "titulo": "Líder de Ciudad Carmín", "tipo": "Eléctrico", "avatar": "⚡", "rango_ids": (1, 386)},
-    {"nombre": "Erika", "titulo": "Líder de Ciudad Azuliza", "tipo": "Planta", "avatar": "🌿", "rango_ids": (1, 500)},
-    {"nombre": "Sabrina", "titulo": "Líder de Ciudad Azafrán", "tipo": "Psíquico", "avatar": "🔮", "rango_ids": (1, 700)}
-]
+# Función para avanzar pasos en huevos activos
+def avanzar_huevos():
+    for h in st.session_state["huevos"]:
+        if not h.get("eclosionado", False):
+            h["pasos_actuales"] += 1
+            if h["pasos_actuales"] >= h["pasos_necesarios"]:
+                h["eclosionado"] = True
+                # Generar Pokémon aleatorio del huevo
+                poke_id = random.randint(1, 898)
+                h["pokemon_id"] = poke_id
+                # Probabilidad de shiny según tipo de huevo
+                es_shiny = random.random() < h["prob_shiny"]
+                h["es_shiny"] = es_shiny
+                
+                # Registrar en Pokédex
+                res_spec = obtener_datos_especie(poke_id)
+                nombre_poke = limpiar_nombre_pokemon(res_spec["name"]) if res_spec else f"Pokémon #{poke_id}"
+                h["nombre_poke"] = nombre_poke
+                
+                st.session_state["pokedex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": 1}
+                if es_shiny:
+                    st.session_state["shinydex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": 1}
+                guardar_progreso()
+                agregar_notificacion(f"🐣 ¡Un Huevo ha eclosionado y ha nacido {nombre_poke}{' ✨SHINY✨' if es_shiny else ''}!", "success")
 
 GENERACIONES = {
     1: {"nombre": "Kanto", "rango": (1, 151), "emoji": "🔴"},
     2: {"nombre": "Johto", "rango": (152, 251), "emoji": "🟡"},
     3: {"nombre": "Hoenn", "rango": (252, 386), "emoji": "🔵"},
     4: {"nombre": "Sinnoh", "rango": (387, 493), "emoji": "💎"},
-    5: {"nombre": "Teselia / Unova", "rango": (494, 649), "emoji": "🏙️"},
+    5: {"nombre": "Teselia", "rango": (494, 649), "emoji": "🏙️"},
     6: {"nombre": "Kalos", "rango": (650, 721), "emoji": "✨"},
     7: {"nombre": "Alola", "rango": (722, 809), "emoji": "🏝️"},
     8: {"nombre": "Galar", "rango": (810, 905), "emoji": "⚔️"},
     9: {"nombre": "Paldea", "rango": (906, 1025), "emoji": "🍇"}
 }
-
-IDS_LEGENDARIOS = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386]
+IDS_LEGENDARIOS = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 377, 378, 379]
 
 def limpiar_nombre_pokemon(nombre_api: str) -> str:
-    nombre = nombre_api.replace("-", " ").title()
-    reemplazos = {
-        "Iron ": "Ferro-", "Great Tusk": "Colmilargo", "Scream Tail": "Colagrito",
-        "Brute Bonnet": "Furioseta", "Flutter Mane": "Melenaleteo", "Slither Wing": "Ondas-Paradójicas",
-        "Sandy Shocks": "Pelarena", "Iron Treads": "Ferrodada", "Iron Bundle": "Ferrosaco",
-        "Iron Hands": "Ferropalmas", "Iron Jugulis": "Ferrocuello", "Iron Moth": "Ferropolilla",
-        "Iron Thorns": "Ferropuas", "Roaring Moon": "Bramaluna", "Iron Valiant": "Ferropaladín",
-        "Walking Wake": "Ondas Agua", "Iron Leaves": "Ferrohoja", "Gouging Fire": "Ocaso Feroz",
-        "Raging Bolt": "Electrofuria", "Iron Boulder": "Ferrololita", "Iron Crown": "Ferrotesta"
-    }
-    return reemplazos.get(nombre_api.replace("-", " ").title(), nombre)
+    return nombre_api.replace("-", " ").title()
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_especie(poke_id: int):
-    try:
-        return requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=2).json()
-    except:
-        return None
+    try: return requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=2).json()
+    except: return None
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_pokemon(poke_id: int):
-    try:
-        return requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=2).json()
-    except:
-        return None
+    try: return requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=2).json()
+    except: return None
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def descargar_imagen_bytes(url: str):
-    try:
-        return requests.get(url, timeout=2).content
-    except:
-        return None
+    try: return requests.get(url, timeout=2).content
+    except: return None
 
 def obtener_nombre_por_id(poke_id: int):
     res = obtener_datos_especie(poke_id)
-    if res:
-        return limpiar_nombre_pokemon(res["name"])
-    return f"Pokémon #{poke_id}"
+    return limpiar_nombre_pokemon(res["name"]) if res else f"Pokémon #{poke_id}"
 
-def obtener_pokemon_por_rango(min_id: int, max_id: int):
-    if not st.session_state["evento_legendario_activo"] and random.random() < 0.01:
-        st.session_state["evento_legendario_activo"] = True
-        leg_id = random.choice(IDS_LEGENDARIOS)
-        st.session_state["legendario_actual"] = leg_id
-        agregar_notificacion(f"🚨 ¡AVISO DE RADAR! ¡Un Pokémon Legendario salvaje ha aparecido!", "warning")
-
-    if st.session_state["evento_legendario_activo"] and st.session_state["legendario_actual"]:
-        poke_id = st.session_state["legendario_actual"]
-    else:
-        if st.session_state["siguiente_pokemon_cache"] is not None:
-            poke_cache = st.session_state["siguiente_pokemon_cache"]
-            st.session_state["siguiente_pokemon_cache"] = None
-            precargar_siguiente_pokemon(min_id, max_id)
-            return poke_cache
-
-        disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
-        if not disponibles:
-            st.session_state["vistos_partida"].clear()
-            disponibles = list(range(min_id, max_id + 1))
-            
-        poke_id = random.choice(disponibles)
-        st.session_state["vistos_partida"].add(poke_id)
+def obtener_pokemon_by_rango(min_id: int, max_id: int):
+    disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
+    if not disponibles:
+        st.session_state["vistos_partida"].clear()
+        disponibles = list(range(min_id, max_id + 1))
+    poke_id = random.choice(disponibles)
+    st.session_state["vistos_partida"].add(poke_id)
     
     try:
         res_species = obtener_datos_especie(poke_id)
         res_poke = obtener_datos_pokemon(poke_id)
-        
         if not res_species or not res_poke: return None
             
         nombre = limpiar_nombre_pokemon(res_species["name"])
@@ -388,80 +305,23 @@ def obtener_pokemon_por_rango(min_id: int, max_id: int):
         tipos = [t["type"]["name"] for t in res_poke["types"]]
         
         ent_info = ENTRENADORES.get(st.session_state["entrenador_actual"], ENTRENADORES["Rojo"])
-        base_shiny = 0.05 + ent_info.get("efecto_shiny", 0.0)
-        prob_shiny = base_shiny + (0.10 if st.session_state["inventario"].get("cebos_activos", 0) > 0 else 0.0)
+        prob_shiny = 0.05 + ent_info.get("efecto_shiny", 0.0)
         es_shiny = random.random() < prob_shiny
-        
-        if st.session_state["inventario"].get("cebos_activos", 0) > 0:
-            st.session_state["inventario"]["cebos_activos"] -= 1
 
         img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
-        if not img_url:
-            img_url = res_poke["sprites"]["front_default"]
-            es_shiny = False
-            
-        if es_shiny:
-            if st.session_state["ultimo_shiny"]:
-                st.session_state["logros"]["suerte_extrema"] = True
-            st.session_state["ultimo_shiny"] = True
-            st.session_state["shinies_vistos"] += 1
-            guardar_progreso()
-        else:
-            st.session_state["ultimo_shiny"] = False
+        if not img_url: img_url = res_poke["sprites"]["front_default"]
             
         img_data = descargar_imagen_bytes(img_url)
         pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
         
         ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
-        nombres_erroneos = [obtener_nombre_por_id(i) for i in ids_erroneos]
-        opciones = nombres_erroneos + [nombre]
+        opciones = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
         random.shuffle(opciones)
         
-        resultado = {
-            "id": poke_id, "nombre": nombre, "gen": gen,
-            "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones,
-            "es_legendario": st.session_state["evento_legendario_activo"]
-        }
-        
-        if st.session_state["evento_legendario_activo"]:
-            st.session_state["evento_legendario_activo"] = False
+        return {"id": poke_id, "nombre": nombre, "gen": gen, "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones}
+    except: return None
 
-        precargar_siguiente_pokemon(min_id, max_id)
-        return resultado
-    except Exception:
-        return None
-
-def precargar_siguiente_pokemon(min_id: int, max_id: int):
-    try:
-        disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_partida"]]
-        if not disponibles:
-            disponibles = list(range(min_id, max_id + 1))
-        poke_id = random.choice(disponibles)
-        
-        res_species = obtener_datos_especie(poke_id)
-        res_poke = obtener_datos_pokemon(poke_id)
-        if res_species and res_poke:
-            nombre = limpiar_nombre_pokemon(res_species["name"])
-            gen = int(res_species["generation"]["url"].split("/")[-2])
-            tipos = [t["type"]["name"] for t in res_poke["types"]]
-            es_shiny = random.random() < 0.05
-            img_url = res_poke["sprites"]["front_shiny"] if es_shiny else res_poke["sprites"]["front_default"]
-            img_data = descargar_imagen_bytes(img_url) if img_url else None
-            pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA") if img_data else None
-            
-            ids_erroneos = random.sample([i for i in range(min_id, max_id + 1) if i != poke_id], min(3, max_id - min_id))
-            opciones = [obtener_nombre_por_id(i) for i in ids_erroneos] + [nombre]
-            random.shuffle(opciones)
-            
-            st.session_state["siguiente_pokemon_cache"] = {
-                "id": poke_id, "nombre": nombre, "gen": gen,
-                "tipos": tipos, "shiny": es_shiny, "imagen": pil_img, "opciones": opciones,
-                "es_legendario": False
-            }
-    except:
-        pass
-
-# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR AMPLIADO ---
+# --- ZONA PRINCIPAL: PERFIL DE ENTRENADOR AMPLIADO + MÚSICA RETRO ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 
 st.markdown(f"""
@@ -484,9 +344,14 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- MENÚ SUPERIOR DE PESTAÑAS (AMPLIADO) ---
-tab_jugar, tab_entrenadores, tab_reto, tab_mercado, tab_misiones, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
-    "🎮 Jugar", "👥 Entrenadores", "🏆 Reto Regional", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Estadísticas", "⚙️ Ajustes"
+# Reproductor de Música Chiptune Retro en Bebida Flotante
+with st.expander("🎵 Reproductor de Música Arcade Chiptune (Retro 8-bit)", expanded=False):
+    st.audio("https://vgmsite.com/soundtracks/pokemon-red-blue-yellow-gb/101-opening.mp3", format="audio/mp3", loop=True)
+    st.caption("Disfruta de la atmósfera clásica mientras juegas y coleccionas cartas.")
+
+# --- MENÚ DE PESTAÑAS (INCLUYENDO GUARDERÍA Y TCG) ---
+tab_jugar, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_misiones, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
+    "🎮 Jugar", "🥚 Guardería", "1f0cf Cartas TCG", "👥 Entrenadores", "🛒 Mercado", "📜 Misiones", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
 # --- 1. SECCIÓN JUGAR ---
@@ -501,104 +366,32 @@ with tab_jugar:
                 st.image(pf["imagen"], width=240)
                 st.subheader(f"Era: #{pf['id']:03d} - {pf['nombre']}")
         st.divider()
-        
-        tiene_revive = st.session_state["inventario"].get("revividores", 0) > 0
-        if tiene_revive:
-            if st.button(f"✨ Usar Ficha de Reintento (Tienes {st.session_state['inventario']['revividores']})", type="primary", use_container_width=True, key="btn_revivir_tab"):
-                st.session_state["inventario"]["revividores"] -= 1
-                st.session_state["derrota"] = False
-                guardar_progreso()
-                agregar_notificacion("✨ ¡Has revivido! Tu racha se mantiene.", "success")
-                st.rerun()
-
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🔄 Reiniciar Partida", type="secondary" if tiene_revive else "primary", use_container_width=True, key="btn_reintentar_derrota_tab"):
-                st.session_state["derrota"] = False
-                st.session_state["puntos"] = 0
-                st.session_state["racha"] = 0
-                st.session_state["vistos_partida"].clear()
-                st.session_state["siguiente_pokemon_cache"] = None
-                st.session_state["id_ronda"] += 1
-                rango = st.session_state["rango_seleccionado"]
-                st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
-                st.rerun()
-        with c2:
-            if st.button("🏠 Menú Principal", use_container_width=True, key="btn_menu_derrota_tab"):
-                st.session_state["derrota"] = False
-                st.session_state["en_partida"] = False
-                st.session_state["en_combate_gimnasio"] = False
-                st.rerun()
-
-    elif st.session_state["en_combate_gimnasio"]:
-        st.title(f"⚔️ COMBATE DE GIMNASIO: {st.session_state['lider_actual']['nombre']}")
-        st.write(f"*{st.session_state['lider_actual']['titulo']}* — Pregunta {st.session_state['gimnasio_ronda']} de {st.session_state['gimnasio_preguntas_totales']}")
-        st.divider()
-        
-        poke_g = st.session_state["gimnasio_pokemon_actual"]
-        if poke_g:
-            c1, c2, c3 = st.columns([1, 2, 1])
-            with c2:
-                st.image(poke_g["imagen"], width=260)
-                st.markdown(f"### {st.session_state['lider_actual']['avatar']} ¡El líder desafía tus conocimientos!")
-                
-            for idx, opc in enumerate(poke_g["opciones"]):
-                if st.button(f"{opc}", use_container_width=True, key=f"btn_gym_tab_{st.session_state['gimnasio_ronda']}_{idx}"):
-                    if opc == poke_g["nombre"]:
-                        if st.session_state["gimnasio_ronda"] >= st.session_state["gimnasio_preguntas_totales"]:
-                            st.session_state["en_combate_gimnasio"] = False
-                            st.session_state["monedas"] += 300
-                            agregar_notificacion("🏆 ¡Has derrotado al Líder de Gimnasio! (+300 Poké-Coins)", "success")
-                            st.rerun()
-                        else:
-                            st.session_state["gimnasio_ronda"] += 1
-                            r_min, r_max = st.session_state["lider_actual"]["rango_ids"]
-                            st.session_state["gimnasio_pokemon_actual"] = obtener_pokemon_por_rango(r_min, r_max)
-                            st.success("✅ ¡Acierto de gimnasio! Siguiente pregunta...")
-                            st.rerun()
-                    else:
-                        st.session_state["en_combate_gimnasio"] = False
-                        st.session_state["derrota"] = True
-                        st.session_state["ultimo_pokemon_fallado"] = poke_g
-                        st.rerun()
+        if st.button("🔄 Reiniciar Partida", type="primary", use_container_width=True):
+            st.session_state["derrota"] = False
+            st.session_state["puntos"] = 0
+            st.session_state["racha"] = 0
+            st.session_state["vistos_partida"].clear()
+            st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(1, 1025)
+            st.rerun()
 
     elif not st.session_state["en_partida"]:
         st.title("🎮 Pokémon Quiz Arcade Ultimate")
         st.write(f"✨ *Entrenador activo:* **{st.session_state['entrenador_actual']}** (`{ent_actual['trait']}`) ✨")
         st.divider()
         
-        filtro_gen = st.radio("🌍 1. Selecciona el filtro de generaciones:", ["🌟 Todas (Gen 1-9)", "🔴 Clásicas (Gen 1 - 3)", "💎 Intermedias (Gen 4 - 6)", "⚔️ Recientes (Gen 7 - 9)"], key="filtro_gen_menu_tab")
-        modo_juego = st.radio("🎯 2. Elige el modo de juego:", ["🏷️ Adivina Nombre", "🌍 Adivina Generación", "🧩 Cripta de Tipos", "🕵️ Silueta Misteriosa"], key="modo_juego_menu_tab")
+        modo_juego = st.radio("🎯 Elige el modo de juego:", ["🏷️ Adivina Nombre", "🌍 Adivina Generación"], key="modo_juego_menu_tab")
         
-        if st.button("🚀 ¡Comenzar Partida Ya!", type="primary", use_container_width=True, key="btn_comenzar_partida_tab"):
+        if st.button("🚀 ¡Comenzar Partida Ya!", type="primary", use_container_width=True):
             st.session_state["en_partida"] = True
             st.session_state["puntos"] = 0
             st.session_state["racha"] = 0
             st.session_state["vistos_partida"].clear()
-            st.session_state["siguiente_pokemon_cache"] = None
             st.session_state["modo_seleccionado"] = modo_juego
-            st.session_state["id_ronda"] += 1
-            
-            if filtro_gen == "🔴 Clásicas (Gen 1 - 3)":
-                st.session_state["rango_seleccionado"] = (1, 386)
-                st.session_state["generaciones_permitidas"] = [1, 2, 3]
-            elif filtro_gen == "💎 Intermedias (Gen 4 - 6)":
-                st.session_state["rango_seleccionado"] = (387, 721)
-                st.session_state["generaciones_permitidas"] = [4, 5, 6]
-            elif filtro_gen == "⚔️ Recientes (Gen 7 - 9)":
-                st.session_state["rango_seleccionado"] = (722, 1025)
-                st.session_state["generaciones_permitidas"] = [7, 8, 9]
-            else:
-                st.session_state["rango_seleccionado"] = (1, 1025)
-                st.session_state["generaciones_permitidas"] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-                
-            rango = st.session_state["rango_seleccionado"]
-            st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
+            st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(1, 1025)
             st.rerun()
 
     else:
         st.title("🎯 Partida en Curso")
-        
         if st.session_state["ultima_notificacion"]:
             msg = st.session_state["ultima_notificacion"]
             if msg["tipo"] == "success": st.success(msg["texto"])
@@ -613,390 +406,207 @@ with tab_jugar:
         st.divider()
         
         comprobar_logros()
-        modo = st.session_state["modo_seleccionado"]
-        rango = st.session_state["rango_seleccionado"]
-        ronda_id = st.session_state["id_ronda"]
-        
         poke = st.session_state.get("pokemon_actual")
         if not poke:
-            poke = obtener_pokemon_por_rango(rango[0], rango[1])
+            poke = obtener_pokemon_by_rango(1, 1025)
             st.session_state["pokemon_actual"] = poke
             
         if poke:
             st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
             if poke["shiny"]:
                 st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
-                agregar_notificacion("✨ ¡SORPRESA! ¡Apareció un Pokémon SHINY!", "warning")
-                
-            if poke.get("es_legendario"):
-                if poke["id"] not in st.session_state["inscripciones_legendarias"]:
-                    st.session_state["inscripciones_legendarias"].append(poke["id"])
-                    agregar_notificacion(f"🌟 ¡Has registrado al Pokémon Legendario {poke['nombre']} en tus inscripciones!", "success")
-                    guardar_progreso()
-
             guardar_progreso()
 
-            ent_info = ENTRENADORES.get(st.session_state["entrenador_actual"], ENTRENADORES["Rojo"])
-            bonus_monedas = ent_info.get("efecto_monedas", 1)
-            bonus_puntos = ent_info.get("efecto_puntos", 1)
-
-            if modo == "🏷️ Adivina Nombre":
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2:
-                    if poke["imagen"]: st.image(poke["imagen"], width=280)
-                    
-                st.subheader("¿Cuál de estos Pokémon es el correcto?")
-                for idx, opc_nombre in enumerate(poke["opciones"]):
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_nombre_t_{ronda_id}_{idx}"):
-                        if opc_nombre == poke["nombre"]:
-                            st.session_state["puntos"] += 1 * bonus_puntos
-                            st.session_state["racha"] += 1
-                            st.session_state["aciertos_totales"] += 1
-                            ganancia = (5 * bonus_puntos) + bonus_monedas
-                            st.session_state["monedas"] += ganancia
-                            avanzar_progreso_mision("mision_1", 1)
-                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                                st.session_state["racha_maxima"] = st.session_state["racha"]
-                            
-                            if st.session_state["racha"] > 0 and st.session_state["racha"] % 5 == 0:
-                                lider_elegido = random.choice(LIDERES_GIMNASIO)
-                                st.session_state["en_combate_gimnasio"] = True
-                                st.session_state["lider_actual"] = lider_elegido
-                                st.session_state["gimnasio_ronda"] = 1
-                                r_min, r_max = lider_elegido["rango_ids"]
-                                st.session_state["gimnasio_pokemon_actual"] = obtener_pokemon_por_rango(r_min, r_max)
-                                agregar_notificacion(f"⚔️ ¡Reto de Gimnasio activado contra {lider_elegido['nombre']}!", "warning")
-                                st.rerun()
-
-                            guardar_progreso()
-                            agregar_notificacion(f"¡Correcto! Era {poke['nombre']} (+{ganancia} Poké-Coins)", "success")
-                            st.session_state["id_ronda"] += 1
-                            st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
-                            st.rerun()
-                        else:
-                            st.session_state["fallos_totales"] += 1
-                            st.session_state["partidas_perdidas"] += 1
-                            guardar_progreso()
-                            agregar_notificacion("¡Fallaste! Fin de la partida.", "error")
-                            st.session_state["ultimo_pokemon_fallado"] = poke
-                            st.session_state["derrota"] = True
-                            st.rerun()
-
-            elif modo == "🌍 Adivina Generación":
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2: 
-                    if poke["imagen"]: st.image(poke["imagen"], width=280)
-                    
-                st.subheader("¿A qué generación pertenece este Pokémon?")
-                gens_permitidas = st.session_state["generaciones_permitidas"]
-                for idx, g_num in enumerate(gens_permitidas):
-                    g_info = GENERACIONES[g_num]
-                    if st.button(f"{g_info['emoji']} Gen {g_num} ({g_info['nombre']})", use_container_width=True, key=f"btn_gen_t_{ronda_id}_{idx}_{g_num}"):
-                        if g_num == poke["gen"]:
-                            st.session_state["puntos"] += 1 * bonus_puntos
-                            st.session_state["racha"] += 1
-                            st.session_state["aciertos_totales"] += 1
-                            ganancia = (5 * bonus_puntos) + bonus_monedas
-                            st.session_state["monedas"] += ganancia
-                            avanzar_progreso_mision("mision_1", 1)
-                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                                st.session_state["racha_maxima"] = st.session_state["racha"]
-                            guardar_progreso()
-                            agregar_notificacion(f"¡Correcto! Gen {poke['gen']} (+{ganancia} Poké-Coins)", "success")
-                            st.session_state["id_ronda"] += 1
-                            st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
-                            st.rerun()
-                        else:
-                            st.session_state["fallos_totales"] += 1
-                            st.session_state["partidas_perdidas"] += 1
-                            guardar_progreso()
-                            agregar_notificacion("¡Fallaste!", "error")
-                            st.session_state["ultimo_pokemon_fallado"] = poke
-                            st.session_state["derrota"] = True
-                            st.rerun()
-
-            elif modo == "🧩 Cripta de Tipos":
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2:
-                    st.markdown(f"### 🛡️ Tipos Elementales:\n" + "".join([f"` {t.upper()} ` " for t in poke["tipos"]]))
-                    st.caption("*(Adivina el Pokémon basándote únicamente en sus tipos)*")
-                    
-                for idx, opc_nombre in enumerate(poke["opciones"]):
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_cripta_t_{ronda_id}_{idx}"):
-                        if opc_nombre == poke["nombre"]:
-                            st.session_state["puntos"] += 2 * bonus_puntos
-                            st.session_state["racha"] += 1
-                            st.session_state["aciertos_totales"] += 1
-                            ganancia = (10 * bonus_puntos) + bonus_monedas
-                            st.session_state["monedas"] += ganancia
-                            avanzar_progreso_mision("mision_1", 1)
-                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                                st.session_state["racha_maxima"] = st.session_state["racha"]
-                            guardar_progreso()
-                            agregar_notificacion(f"¡Correcto en Cripta! Era {poke['nombre']} (+{ganancia} Poké-Coins)", "success")
-                            st.session_state["id_ronda"] += 1
-                            st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
-                            st.rerun()
-                        else:
-                            st.session_state["fallos_totales"] += 1
-                            st.session_state["partidas_perdidas"] += 1
-                            guardar_progreso()
-                            agregar_notificacion("¡Fallaste en la cripta!", "error")
-                            st.session_state["ultimo_pokemon_fallado"] = poke
-                            st.session_state["derrota"] = True
-                            st.rerun()
-
-            elif modo == "🕵️ Silueta Misteriosa":
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2:
-                    if poke["imagen"]:
-                        img_rgba = poke["imagen"].convert("RGBA")
-                        alpha = img_rgba.split()[3]
-                        silueta = Image.new("RGBA", img_rgba.size, (0, 0, 0, 255))
-                        silueta.putalpha(alpha)
-                        st.image(silueta, width=280)
-                    
-                st.subheader("¿Quién es este Pokémon oculto en la sombra?")
-                for idx, opc_nombre in enumerate(poke["opciones"]):
-                    if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_silueta_t_{ronda_id}_{idx}"):
-                        if opc_nombre == poke["nombre"]:
-                            st.session_state["puntos"] += 2 * bonus_puntos
-                            st.session_state["racha"] += 1
-                            st.session_state["aciertos_totales"] += 1
-                            ganancia = (10 * bonus_puntos) + bonus_monedas
-                            st.session_state["monedas"] += ganancia
-                            avanzar_progreso_mision("mision_1", 1)
-                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                                st.session_state["racha_maxima"] = st.session_state["racha"]
-                            guardar_progreso()
-                            agregar_notificacion(f"¡Acertaste la silueta! Era {poke['nombre']} (+{ganancia} Poké-Coins)", "success")
-                            st.session_state["id_ronda"] += 1
-                            st.session_state["pokemon_actual"] = obtener_pokemon_por_rango(rango[0], rango[1])
-                            st.rerun()
-                        else:
-                            st.session_state["fallos_totales"] += 1
-                            st.session_state["partidas_perdidas"] += 1
-                            guardar_progreso()
-                            agregar_notificacion("¡Fallaste la silueta!", "error")
-                            st.session_state["ultimo_pokemon_fallado"] = poke
-                            st.session_state["derrota"] = True
-                            st.rerun()
-
-        st.divider()
-        if st.button("🏠 Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_activo_tab"):
-            st.session_state["en_partida"] = False
-            st.session_state["derrota"] = False
-            st.session_state["en_combate_gimnasio"] = False
-            st.rerun()
-
-# --- 2. SECCIÓN ENTRENADORES ---
-with tab_entrenadores:
-    st.title("👥 Gimnasio de Entrenadores Legales")
-    st.write("¡Desbloquea y elige a leyendas del universo Pokémon para aprovechar sus **traits y pasivas únicas**!")
-    st.divider()
-    
-    for key_ent, datos in ENTRENADORES.items():
-        es_desbloqueado = key_ent in st.session_state["entrenadores_desbloqueados"]
-        es_activo = st.session_state["entrenador_actual"] == key_ent
-        
-        c1, c2, c3 = st.columns([1, 3, 2])
-        with c1:
-            st.image(datos["avatar_url"], width=80)
-        with c2:
-            st.markdown(f"### {datos['nombre']} (Gen {datos['gen']})\n\n*{datos['descripcion']}*\n\n💡 **Trait:** `{datos['trait']}`")
-        with c3:
-            if es_activo:
-                st.success("✅ Activo")
-            elif es_desbloqueado:
-                if st.button(f"Seleccionar", key=f"sel_ent_tab_{key_ent}", use_container_width=True):
-                    st.session_state["entrenador_actual"] = key_ent
-                    if datos.get("efecto_revive", 0) > 0:
-                        st.session_state["inventario"]["revividores"] += datos.get("efecto_revive", 0)
-                    guardar_progreso()
-                    st.success(f"¡Ahora juegas como {key_ent}!")
-                    st.rerun()
-            else:
-                if st.button(f"Desbloquear (🪙 {datos['costo']})", key=f"buy_ent_tab_{key_ent}", use_container_width=True):
-                    if st.session_state["monedas"] >= datos["costo"]:
-                        st.session_state["monedas"] -= datos["costo"]
-                        st.session_state["entrenadores_desbloqueados"].append(key_ent)
-                        st.session_state["entrenador_actual"] = key_ent
-                        if datos.get("efecto_revive", 0) > 0:
-                            st.session_state["inventario"]["revividores"] += datos.get("efecto_revive", 0)
+            c1, c2, c3 = st.columns([1, 2, 1])
+            with c2:
+                if poke["imagen"]: st.image(poke["imagen"], width=280)
+                
+            st.subheader("¿Cuál de estos Pokémon es el correcto?")
+            for idx, opc_nombre in enumerate(poke["opciones"]):
+                if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
+                    if opc_nombre == poke["nombre"]:
+                        st.session_state["puntos"] += 1
+                        st.session_state["racha"] += 1
+                        st.session_state["aciertos_totales"] += 1
+                        st.session_state["monedas"] += 6
+                        avanzar_progreso_mision("mision_1", 1)
+                        avanzar_huevos() # ¡Suma pasos a los huevos activos!
+                        
+                        if st.session_state["racha"] > st.session_state["racha_maxima"]:
+                            st.session_state["racha_maxima"] = st.session_state["racha"]
+                        
                         guardar_progreso()
-                        st.success(f"🎉 ¡Has desbloqueado y seleccionado a {key_ent}!")
+                        agregar_notificacion(f"¡Correcto! Era {poke['nombre']} (+6 Poké-Coins, 🥚 +1 Paso a huevos)", "success")
+                        st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(1, 1025)
                         st.rerun()
                     else:
-                        st.error("❌ No tienes suficientes Poké-Coins.")
-        st.divider()
+                        st.session_state["fallos_totales"] += 1
+                        st.session_state["partidas_perdidas"] += 1
+                        guardar_progreso()
+                        st.session_state["ultimo_pokemon_fallado"] = poke
+                        st.session_state["derrota"] = True
+                        st.rerun()
 
-# --- 3. SECCIÓN RETO REGIONAL ---
-with tab_reto:
-    st.title("🏆 El Reto Regional (Name All)")
-    st.write("¡Escribe los nombres de todos los Pokémon de la región elegida!")
-    st.divider()
-    if not st.session_state["reto_activo"]:
-        reg_elegida = st.selectbox("Selecciona la región:", list(GENERACIONES.keys()), format_func=lambda x: f"{GENERACIONES[x]['emoji']} {GENERACIONES[x]['nombre']} ({GENERACIONES[x]['rango'][0]} - {GENERACIONES[x]['rango'][1]})", key="sel_reto_reg_tab")
-        if st.button("🚀 ¡Comenzar Reto Regional!", type="primary", use_container_width=True, key="btn_comenzar_reto_tab"):
-            st.session_state["reto_activo"] = True
-            st.session_state["reto_region"] = reg_elegida
-            st.session_state["reto_adivinados"] = set()
+        st.divider()
+        if st.button("🏠 Volver al Menú", use_container_width=True):
+            st.session_state["en_partida"] = False
+            st.session_state["derrota"] = False
             st.rerun()
+
+# --- 2. SECCIÓN GUARDERÍA (HUEVOS POKÉMON) ---
+with tab_guarderia:
+    st.title("🥚 Guardería Pokémon")
+    st.write("¡Incuba tus huevos ganando aciertos en las partidas arcade y hazlos eclosionar!")
+    st.divider()
+    
+    if not st.session_state["huevos"]:
+        st.info("No tienes ningún huevo en incubación. ¡Compra uno en el **Mercado**!")
     else:
-        reg_id = st.session_state["reto_region"]
-        rango_reg = GENERACIONES[reg_id]["rango"]
-        total_reg = (rango_reg[1] - rango_reg[0]) + 1
-        adivinados = len(st.session_state["reto_adivinados"])
-        st.metric(label=f"📊 Progreso en {GENERACIONES[reg_id]['nombre']}", value=f"{adivinados} / {total_reg}")
-        
-        nombre_input = st.text_input("Escribe el nombre de un Pokémon:", key="input_reto_poke_tab", placeholder="Ej: Pikachu...").strip().title()
-        if nombre_input:
-            encontrado_id = None
-            for pid in range(rango_reg[0], rango_reg[1] + 1):
-                if obtener_nombre_por_id(pid).lower() == nombre_input.lower():
-                    encontrado_id = pid
-                    break
-            if encontrado_id and encontrado_id not in st.session_state["reto_adivinados"]:
-                st.session_state["reto_adivinados"].add(encontrado_id)
-                st.session_state["pokedex_capturados"][encontrado_id] = {"nombre": obtener_nombre_por_id(encontrado_id), "gen": reg_id}
-                st.session_state["monedas"] += 5
-                avanzar_progreso_mision("mision_2", 1)
-                guardar_progreso()
-                st.success(f"🎉 ¡Correcto! Descubierto {obtener_nombre_por_id(encontrado_id)} (+5 Poké-Coins)")
-                st.rerun()
-            elif encontrado_id in st.session_state["reto_adivinados"]:
-                st.warning("⚠️ ¡Ya habías adivinado ese Pokémon!")
+        for idx, h in enumerate(st.session_state["huevos"]):
+            progreso = min(1.0, h["pasos_actuales"] / h["pasos_necesarios"])
+            st.markdown(f"### 🥚 {h['tipo']} (Progreso: {h['pasos_actuales']} / {h['pasos_necesarios']} pasos)")
+            st.progress(progreso)
+            
+            if h.get("eclosionado", False):
+                st.success(f"🎉 ¡Eclosionado! Nació un **{h['nombre_poke']}** {'✨SHINY✨' if h['es_shiny'] else ''}")
+                if st.button(f"Recoger al Pokémon (Huevo #{idx+1})", key=f"recoger_h_{idx}"):
+                    st.session_state["huevos"].pop(idx)
+                    guardar_progreso()
+                    st.rerun()
+            else:
+                st.caption("💡 Juega partidas de Adivinanza para avanzar los pasos de este huevo.")
+            st.divider()
 
-        cols_grilla = st.columns(5)
-        for idx, pid in enumerate(range(rango_reg[0], rango_reg[1] + 1)):
-            col = cols_grilla[idx % 5]
-            with col:
-                if pid in st.session_state["reto_adivinados"]:
-                    st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=80)
-                    st.caption(f"#{pid}\n{obtener_nombre_por_id(pid)}")
-                else:
-                    st.info(f"#{pid}\n❓")
-        st.divider()
-        if st.button("🚪 Abandonar Reto", use_container_width=True, key="btn_abandonar_reto_tab"):
-            st.session_state["reto_activo"] = False
-            st.session_state["reto_adivinados"].clear()
-            st.rerun()
-
-# --- 4. SECCIÓN MERCADO ---
-with tab_mercado:
-    st.title("🛒 Bazar de Objetos Pokémon")
-    st.write("¡Invierte tus **Poké-Coins** en ventajas caras y poderosas para expertos!")
+# --- 3. SECCIÓN CARTAS TCG ---
+with tab_tcg:
+    st.title("🎴 Álbum de Cartas TCG")
+    st.write("¡Colecciona cartas únicas comprando sobres en el mercado!")
     st.divider()
     
-    c1, c2 = st.columns(2)
-    with c1: st.metric("🪙 Tus Monedas", st.session_state["monedas"])
-    with c2: st.metric("🎒 Fichas de Reintento", st.session_state["inventario"].get("revividores", 0))
+    if not st.session_state["cartas_coleccion"]:
+        st.info("📦 Tu álbum está vacío. ¡Adquiere sobres de cartas en el **Mercado** para empezar a coleccionar!")
+    else:
+        cols = st.columns(3)
+        for idx, carta in enumerate(st.session_state["cartas_coleccion"]):
+            col = cols[idx % 3]
+            with col:
+                st.markdown(f"""
+                <div class="card-tcg">
+                    <img src="{carta['imagen']}" width="120" style="border-radius:8px;">
+                    <h4 style="margin:8px 0 4px 0; color:white;">{carta['nombre']}</h4>
+                    <p style="margin:0; color:#ffcc00; font-size:12px; font-weight:bold;">★ {carta['rareza']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+# --- 4. SECCIÓN ENTRENADORES ---
+with tab_entrenadores:
+    st.title("👥 Entrenadores")
+    for key_ent, datos in ENTRENADORES.items():
+        es_activo = st.session_state["entrenador_actual"] == key_ent
+        c1, c2, c3 = st.columns([1, 3, 2])
+        with c1: st.image(datos["avatar_url"], width=70)
+        with c2: st.markdown(f"### {datos['nombre']}\n*{datos['descripcion']}*\n💡 `{datos['trait']}`")
+        with c3:
+            if es_activo: st.success("✅ Activo")
+            else:
+                if st.button("Seleccionar", key=f"sel_e_{key_ent}", use_container_width=True):
+                    st.session_state["entrenador_actual"] = key_ent
+                    guardar_progreso()
+                    st.rerun()
+        st.divider()
+
+# --- 5. SECCIÓN MERCADO (HUEVOS Y SOBRES TCG) ---
+with tab_mercado:
+    st.title("🛒 Bazar de Objetos y TCG")
+    st.write(f"🪙 Tus Monedas: **{st.session_state['monedas']}**")
+    st.divider()
     
-    st.subheader("📦 Artículos Exclusivos:")
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.info("**🔄 Ficha de Reintento Élite**\n\nPermite revivir una vez tras caer derrotado y conservar tu racha.")
-        if st.button("Comprar (🪙 150)", use_container_width=True, key="btn_comprar_revive_tab"):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("### 🥚 Huevo Normal")
+        st.write("Necesita 10 aciertos para eclosionar.")
+        if st.button("Comprar (🪙 100)", key="b_h_norm", use_container_width=True):
+            if st.session_state["monedas"] >= 100:
+                st.session_state["monedas"] -= 100
+                st.session_state["huevos"].append({"tipo": "Huevo Normal", "pasos_actuales": 0, "pasos_necesarios": 10, "prob_shiny": 0.05, "eclosionado": False})
+                guardar_progreso()
+                st.success("✅ ¡Huevo Normal añadido a la Guardería!")
+                st.rerun()
+            else: st.error("❌ Monedas insuficientes")
+            
+    with c2:
+        st.markdown("### ✨ Huevo Shiny")
+        st.write("Alta probabilidad de Shiny (5 aciertos).")
+        if st.button("Comprar (🪙 300)", key="b_h_shiny", use_container_width=True):
+            if st.session_state["monedas"] >= 300:
+                st.session_state["monedas"] -= 300
+                st.session_state["huevos"].append({"tipo": "Huevo Shiny", "pasos_actuales": 0, "pasos_necesarios": 5, "prob_shiny": 0.50, "eclosionado": False})
+                guardar_progreso()
+                st.success("✅ ¡Huevo Shiny añadido a la Guardería!")
+                st.rerun()
+            else: st.error("❌ Monedas insuficientes")
+
+    with c3:
+        st.markdown("### 🎴 Sobre TCG")
+        st.write("Contiene 1 carta aleatoria coleccionable.")
+        if st.button("Comprar (🪙 150)", key="b_sobre_tcg", use_container_width=True):
             if st.session_state["monedas"] >= 150:
                 st.session_state["monedas"] -= 150
-                st.session_state["inventario"]["revividores"] += 1
-                guardar_progreso()
-                st.success("✅ ¡Has comprado una Ficha de Reintento!")
-                st.rerun()
-            else:
-                st.error("❌ Necesitas 150 Poké-Coins.")
-                
-    with col_t2:
-        st.info("**✨ Cebo Shiny Supremo (10 Rondas)**\n\nAumenta drásticamente la probabilidad de Shinies durante 10 rondas.")
-        if st.button("Comprar (🪙 350)", use_container_width=True, key="btn_comprar_cebo_tab"):
-            if st.session_state["monedas"] >= 350:
-                st.session_state["monedas"] -= 350
-                st.session_state["inventario"]["cebos_activos"] = st.session_state["inventario"].get("cebos_activos", 0) + 10
-                guardar_progreso()
-                st.success("✅ ¡Cebo Supremo activado para 10 rondas!")
-                st.rerun()
-            else:
-                st.error("❌ Necesitas 350 Poké-Coins.")
+                poke_id = random.randint(1, 150)
+                res_p = obtener_datos_pokemon(poke_id)
+                res_s = obtener_datos_especie(poke_id)
+                if res_p and res_s:
+                    nombre = limpiar_nombre_pokemon(res_s["name"])
+                    rareza = random.choice(["Común", "Común", "Rara", "Holográfica", "Ultra Rara"])
+                    img = res_p["sprites"]["front_default"]
+                    st.session_state["cartas_coleccion"].append({"nombre": nombre, "rareza": rareza, "imagen": img})
+                    guardar_progreso()
+                    st.success(f"🎴 ¡Abriste un sobre y obtuviste a **{nombre}** ({rareza})!")
+                    st.rerun()
+            else: st.error("❌ Monedas insuficientes")
 
-# --- 5. SECCIÓN MISIONES ---
+# --- 6. SECCIÓN MISIONES ---
 with tab_misiones:
     st.title("📜 Misiones del Profesor Oak")
-    st.write("¡Completa tareas diarias para conseguir Poké-Coins extra!")
-    st.divider()
     verificar_reajustar_misiones()
     for k_mis, m_data in st.session_state["misiones_dia"].items():
         estado = "✅ ¡Completada!" if m_data["completada"] else f"⏳ Progreso: {m_data['actual']} / {m_data['meta']}"
-        st.info(f"**{m_data['desc']}**\n\nRecompensa: 🪙 {m_data['recompensa']} Poké-Coins\n\n*{estado}*")
+        st.info(f"**{m_data['desc']}**\nRecompensa: 🪙 {m_data['recompensa']}\n*{estado}*")
 
-# --- 6. SECCIÓN POKÉDEX ---
+# --- 7. SECCIÓN POKÉDEX ---
 with tab_pokedex:
     st.title("📖 Tu Pokédex Web")
     st.write(f"Pokémon registrados: **{len(st.session_state['pokedex_capturados'])} / 1025**")
     st.divider()
-    if st.session_state["pokedex_capturados"]:
-        for pid, data in sorted(st.session_state["pokedex_capturados"].items()):
-            c1, c2 = st.columns([1, 5])
-            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=75)
-            with c2: st.write(f"### #{pid:03d} - {data['nombre']} (Gen {data['gen']})")
-            st.divider()
-    else:
-        st.info("💡 ¡Juega para rellenar tu Pokédex!")
-
-# --- 7. SECCIÓN SHINYDEV ---
-with tab_shinydex:
-    st.title("✨ Tu ShinyDex")
-    st.write(f"Shinies capturados: **{len(st.session_state['shinydex_capturados'])}**")
-    st.divider()
-    if st.session_state["shinydex_capturados"]:
-        for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
-            c1, c2 = st.columns([1, 5])
-            with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=85)
-            with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
-            st.divider()
-    else:
-        st.info("🍀 Todavía no te ha salido ningún Shiny. ¡Sigue probando!")
-
-# --- 8. SECCIÓN ESTADÍSTICAS ---
-with tab_stats:
-    st.title("📊 Panel de Rendimiento")
-    comprobar_logros()
-    p_stats, p_logros = st.tabs(["📊 Estadísticas", "🏅 Trofeos"])
-    with p_stats:
-        total_resp = st.session_state["aciertos_totales"] + st.session_state["fallos_totales"]
-        pct = (st.session_state["aciertos_totales"] / total_resp * 100) if total_resp > 0 else 0.0
-        st.info(f"👑 **Título Actual:** {obtener_titulo_entrenador()} | 👥 **Entrenador:** {st.session_state['entrenador_actual']}")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("🔥 Racha Máxima", st.session_state["racha_maxima"])
-            st.metric("✅ Aciertos", st.session_state["aciertos_totales"])
-            st.metric("💥 Partidas Perdidas", st.session_state["partidas_perdidas"])
-        with c2:
-            st.metric("📖 Pokédex", f"{len(st.session_state['pokedex_capturados'])} / 1025")
-            st.metric("❌ Fallos", st.session_state["fallos_totales"])
-            st.metric("✨ Shinies Vistos", st.session_state["shinies_vistos"])
+    for pid, data in sorted(st.session_state["pokedex_capturados"].items()):
+        c1, c2 = st.columns([1, 5])
+        with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid}.png", width=70)
+        with c2: st.write(f"### #{pid:03d} - {data['nombre']}")
         st.divider()
-        st.metric("🎯 Precisión General", f"{pct:.1f}%")
-    with p_logros:
-        for clave, datos in LOGROS_DEF.items():
-            if st.session_state["logros"].get(clave, False):
-                st.success(f"**{datos['titulo']}** — {datos['desc']} (✅ Desbloqueado)")
-            else:
-                st.info(f"**{datos['titulo']}** — {datos['desc']} (🔒 Bloqueado)")
 
-# --- 9. SECCIÓN AJUSTES ---
+# --- 8. SECCIÓN SHINYDEV ---
+with tab_shinydex:
+    st.title("✨ ShinyDex")
+    for pid, data in sorted(st.session_state["shinydex_capturados"].items()):
+        c1, c2 = st.columns([1, 5])
+        with c1: st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{pid}.png", width=80)
+        with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
+        st.divider()
+
+# --- 9. SECCIÓN ESTADÍSTICAS ---
+with tab_stats:
+    st.title("📊 Estadísticas")
+    comprobar_logros()
+    st.metric("🔥 Racha Máxima", st.session_state["racha_maxima"])
+    st.metric("✅ Aciertos Totales", st.session_state["aciertos_totales"])
+    st.subheader("🏅 Logros Desbloqueados:")
+    for clave, datos in LOGROS_DEF.items():
+        if st.session_state["logros"].get(clave, False):
+            st.success(f"**{datos['titulo']}** — {datos['desc']}")
+
+# --- 10. SECCIÓN AJUSTES ---
 with tab_ajustes:
-    st.title("⚙️ Ajustes y Perfil")
-    st.divider()
-    if st.button("🗑️ Borrar Todo el Progreso", type="secondary", key="btn_borrar_progreso_tab"):
-        for k in ["pokedex_capturados", "shinydex_capturados", "logros", "vistos_partida", "inscripciones_legendarias", "entrenadores_desbloqueados"]:
-            if isinstance(st.session_state[k], set): st.session_state[k].clear()
-            elif isinstance(st.session_state[k], list): st.session_state[k] = ["Rojo"] if k == "entrenadores_desbloqueados" else []
-            else: st.session_state[k].clear()
-        for k in ["racha_maxima", "aciertos_totales", "fallos_totales", "partidas_perdidas", "shinies_vistos", "racha", "puntos", "monedas"]:
-            st.session_state[k] = 0
-        st.session_state["monedas"] = 100
-        st.session_state["inventario"] = {"revividores": 0, "cebos_activos": 0}
-        st.session_state["entrenador_actual"] = "Rojo"
-        st.session_state["ultima_notificacion"] = None
+    st.title("⚙️ Ajustes")
+    if st.button("🗑️ Borrar Todo el Progreso", type="secondary"):
         if os.path.exists(ARCHIVO_GUARDADO): os.remove(ARCHIVO_GUARDADO)
-        st.success("✅ ¡Progreso reiniciado con éxito!")
+        st.rerun()
