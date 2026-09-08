@@ -154,25 +154,29 @@ if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notif
 if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recien_abierta"] = None
 if "mostrar_consola_trucos" not in st.session_state: st.session_state["mostrar_consola_trucos"] = False
 
-# --- DETECTOR DE TECLA "Q" CON JAVASCRIPT ---
+# --- DETECTOR DE TECLA "Q" INVISIBLE ---
 components.html("""
 <script>
     document.addEventListener('keydown', function(e) {
         if (e.key === 'q' || e.key === 'Q') {
-            // Prevenir si está escribiendo en un input
             if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-            
             const btn = parent.document.getElementById('hidden_trigger_btn');
-            if (btn) {
-                btn.click();
-            }
+            if (btn) { btn.click(); }
         }
     });
 </script>
 """, height=0)
 
-# Botón invisible de Streamlit para sincronizar el evento de la tecla Q
-if st.button("TrigQ", key="hidden_trigger_btn", help=None):
+# Contenedor visualmente oculto para el botón de disparo por teclado
+st.markdown("""
+<style>
+    div[data-testid="stHorizontalBlock"] > div:has(#hidden_trigger_btn) {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+if st.button("TrigQ", key="hidden_trigger_btn"):
     st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
     st.rerun()
 
@@ -343,7 +347,6 @@ if st.session_state["mostrar_consola_trucos"]:
         codigo_ingresado = st.text_input("Comando:", type="password", key="input_consola_secreta", label_visibility="collapsed")
     with col_t2:
         if st.button("Enviar", use_container_width=True):
-            # Código de acceso integrado de forma discreta
             if codigo_ingresado.strip().lower() == "popoi":
                 st.session_state["monedas"] += 10000
                 guardar_progreso()
@@ -759,23 +762,21 @@ with tab_stats:
         if st.session_state["logros"].get(clave, False):
             st.success(f"**{datos['titulo']}** — {datos['desc']}")
 
-# --- 9. AJUSTES (SELECCIÓN DE COMPAÑERO Y GESTIÓN) ---
+# --- 9. AJUSTES (SELECCIÓN DE COMPAÑERO Y VALIDACIÓN SHINY) ---
 with tab_ajustes:
     st.title("⚙️ Ajustes y Configuración")
     st.write("Gestiona tu compañero Pokémon estilo Pokémon GO y opciones de guardado.")
     st.divider()
     
     st.subheader("🐾 Selección de Compañero")
-    st.write("Escribe el nombre o número de un Pokémon que ya hayas registrado en tu Pokédex y elige su variante:")
+    st.write("Escribe el nombre de un Pokémon registrado en tu Pokédex y elige su variante:")
     
     if not st.session_state["pokedex_capturados"]:
         st.info("Aún no tienes Pokémon en tu Pokédex para elegir como compañero.")
     else:
-        # Mapeo de nombres a IDs registrados
         nombres_disponibles = {data["nombre"]: pid for pid, data in st.session_state["pokedex_capturados"].items()}
         lista_nombres = sorted(list(nombres_disponibles.keys()))
         
-        # Buscar el nombre actual por defecto
         nombre_actual_comp = obtener_nombre_por_id(st.session_state["companero_id"])
         idx_default = lista_nombres.index(nombre_actual_comp) if nombre_actual_comp in lista_nombres else 0
         
@@ -783,11 +784,18 @@ with tab_ajustes:
         with col_set1:
             pokemon_elegido_str = st.selectbox("Selecciona compañero registrado:", lista_nombres, index=idx_default)
         with col_set2:
-            modo_shiny_comp = st.checkbox("Versión Shiny ✨", value=st.session_state["companero_shiny"])
+            id_tentativo = nombres_disponibles[pokemon_elegido_str]
+            # Verificación estricta: Solo permite seleccionar Shiny si está en la ShinyDex
+            tiene_shiny = id_tentativo in st.session_state["shinydex_capturados"]
+            
+            if tiene_shiny:
+                modo_shiny_comp = st.checkbox("Versión Shiny ✨", value=st.session_state["companero_shiny"] and st.session_state["companero_id"] == id_tentativo)
+            else:
+                st.checkbox("Versión Shiny ✨ (Bloqueado)", value=False, disabled=True, help="Necesitas atrapar este Pokémon en versión shiny para desbloquearlo.")
+                modo_shiny_comp = False
             
         if st.button("💾 Establecer como Compañero", use_container_width=True):
-            id_seleccionado = nombres_disponibles[pokemon_elegido_str]
-            st.session_state["companero_id"] = id_seleccionado
+            st.session_state["companero_id"] = id_tentativo
             st.session_state["companero_shiny"] = modo_shiny_comp
             guardar_progreso()
             st.success(f"✔ ¡{pokemon_elegido_str} ({'Shiny' if modo_shiny_comp else 'Normal'}) es ahora tu compañero oficial!")
