@@ -7,7 +7,7 @@ import io
 import json
 import os
 import datetime
-import streamlit.components.v1 as componentes
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Pokémon Quiz Arcade Ultimate ⚡",
@@ -15,7 +15,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS REVOLUCIONADOS ---
 st.markdown("""
 <style>
     .stApp {
