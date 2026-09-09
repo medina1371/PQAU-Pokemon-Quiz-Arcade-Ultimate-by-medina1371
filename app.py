@@ -637,12 +637,24 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (TEMPORIZADOR INFALIBLE CON COMPONENTE NATIVO) ---
+# --- 2. MODO HISTORIA (TEMPORIZADOR INFALIBLE CON DISPARADOR DE BOTÓN NATIVO) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
     st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real y penalización automática**.")
     st.divider()
     
+    # Botón oculto real en Streamlit para forzar la ejecución directa al agotarse el tiempo
+    if st.button("TrigTimeOut", key="hidden_timeout_btn"):
+        st.session_state["historia_vidas"] -= 1
+        if st.session_state["historia_vidas"] <= 0:
+            st.session_state["en_historia"] = False
+            st.error("💥 Se te agotó el tiempo, prueba otra vez")
+        else:
+            st.warning("Se te agotó el tiempo, prueba otra vez")
+            r_max_val = 1025 if st.session_state["modo_supervivencia"] else 386
+            st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
+        st.rerun()
+
     if not st.session_state["en_historia"]:
         col_hs1, col_hs2 = st.columns(2)
         with col_hs1:
@@ -676,20 +688,6 @@ with tab_historia:
             st.divider()
     
     else:
-        # Mecanismo de eventos invisible para atrapar el fin de tiempo exacto
-        if st.query_params.get("tiempo_agotado") == "true":
-            st.query_params.pop("tiempo_agotado", None)
-            st.session_state["historia_vidas"] -= 1
-            if st.session_state["historia_vidas"] <= 0:
-                st.session_state["en_historia"] = False
-                st.error("💥 ¡Se acabó el tiempo y te quedaste sin vidas! Fin del desafío.")
-                st.rerun()
-            else:
-                st.warning("⏱️ ¡Tiempo agotado! Has perdido 1 vida.")
-                r_max_val = 1025 if st.session_state["modo_supervivencia"] else 386
-                st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
-                st.rerun()
-
         is_sup = st.session_state["modo_supervivencia"]
         gym_activo = None if is_sup else GIMNASIOS_HISTORIA[min(len(GIMNASIOS_HISTORIA)-1, st.session_state["historia_progreso"]-1)]
         
@@ -700,7 +698,17 @@ with tab_historia:
         
         st.metric("❤️ Vidas Restantes", st.session_state["historia_vidas"])
         
-        # Componente JavaScript/HTML de Temporizador Sincronizado Infalible
+        # Ocultar el botón Streamlit auxiliar mediante CSS para que JavaScript lo pulse solo por ID
+        st.markdown("""
+        <style>
+            div[data-testid="stHorizontalBlock"] > div:has(#hidden_timeout_btn),
+            div:has(> button[key="hidden_timeout_btn"]) {
+                display: none !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Componente JavaScript/HTML de Temporizador Sincronizado que pulsa el botón real de Streamlit
         components.html("""
         <div id="timer-box" style="background: #15152b; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #ff4444;">
@@ -725,10 +733,14 @@ with tab_historia:
                     counter.innerHTML = "0.0s";
                     bar.style.width = "0%";
                     
-                    // Forzar redirección limpia con parámetro exacto para recargar Streamlit
-                    const url = new URL(window.parent.location.href);
-                    url.searchParams.set('tiempo_agotado', 'true');
-                    window.parent.location.href = url.toString();
+                    // Buscar y pulsar el botón invisible de Streamlit para recargar la app con el estado actualizado
+                    const buttons = parent.document.querySelectorAll('button');
+                    for (let btn of buttons) {
+                        if (btn.innerText.includes('TrigTimeOut')) {
+                            btn.click();
+                            break;
+                        }
+                    }
                 } else {
                     counter.innerHTML = currentTime.toFixed(1) + "s";
                     let pct = (currentTime / totalTime) * 100;
@@ -777,10 +789,10 @@ with tab_historia:
                         st.session_state["historia_vidas"] -= 1
                         if st.session_state["historia_vidas"] <= 0:
                             st.session_state["en_historia"] = False
-                            st.error("💥 ¡Te has quedado sin vidas! Fin del desafío historia.")
+                            st.error("💥 Se te agotó el tiempo, prueba otra vez")
                             st.rerun()
                         else:
-                            st.warning(f"❌ ¡Fallaste! Te quedan {st.session_state['historia_vidas']} vidas.")
+                            st.warning(f"Se te agotó el tiempo, prueba otra vez (Te quedan {st.session_state['historia_vidas']} vidas)")
                             r_max_val = 1025 if is_sup else 386
                             st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
                             st.rerun()
