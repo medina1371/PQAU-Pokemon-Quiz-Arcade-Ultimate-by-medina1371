@@ -9,12 +9,29 @@ import os
 import datetime
 import time
 import streamlit.components.v1 as components
+from supabase import create_client, Client
 
 st.set_page_config(
     page_title="Pokémon Quiz Arcade Ultimate ⚡",
     page_icon="🎮",
     layout="centered"
 )
+
+# --- CONFIGURACIÓN DE SUPABASE ---
+# Intentará leer las credenciales desde st.secrets (Streamlit Cloud o .streamlit/secrets.toml)
+try:
+    SUPABASE_URL = st.secrets["supabase"]["url"]
+    SUPABASE_KEY = st.secrets["supabase"]["key"]
+except Exception:
+    # Valores de respaldo por si lo ejecutas localmente sin secrets.toml configurado
+    SUPABASE_URL = "https://xlytnqvdsznfapjjqarp.supabase.co"
+    SUPABASE_KEY = "sb_publishable_GS6VprT94eYwkjuOo9G8jA_uHE9RKFF"
+
+@st.cache_resource
+def init_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase: Client = init_supabase()
 
 st.markdown("""
 <style>
@@ -109,7 +126,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---[cite: 4]
+# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
 components.html("""
 <script>
     const STORAGE_KEY = "pokemon_arcade_device_id";
@@ -130,7 +147,6 @@ if "device_id" not in st.query_params:
     st.query_params["device_id"] = str(uuid.uuid4())[:8]
 
 DEVICE_ID = st.query_params["device_id"]
-ARCHIVO_GUARDADO = f"pokedex_save_{DEVICE_ID}.json"
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
@@ -154,41 +170,43 @@ def obtener_rango_por_aciertos(aciertos_totales):
             break
     return rango_actual
 
-# --- PERSISTENCIA (JSON LOCAL AISLADO POR DISPOSITIVO) ---[cite: 4]
+# --- PERSISTENCIA EN SUPABASE ---
 def cargar_progreso():
-    if os.path.exists(ARCHIVO_GUARDADO):
-        try:
-            with open(ARCHIVO_GUARDADO, "r", encoding="utf-8") as f:
-                datos = json.load(f)
-                pokedex = {int(k): v for k, v in datos.get("pokedex", {}).items()}
-                shinydex = {int(k): v for k, v in datos.get("shinydex", {}).items()}
-                racha_max = datos.get("racha_maxima", 0)
-                logros = datos.get("logros", {})
-                aciertos = datos.get("aciertos_totales", 0)
-                fallos = datos.get("fallos_totales", 0)
-                monedas = datos.get("monedas", 10)
-                entrenador_actual = datos.get("entrenador_actual", "Rojo")
-                entrenadores_desbloqueados = datos.get("entrenadores_desbloqueados", ["Rojo"])
-                huevos = datos.get("huevos", [])
-                cartas_coleccion = datos.get("cartas_coleccion", [])
-                companero_id = datos.get("companero_id", 25)
-                companero_shiny = datos.get("companero_shiny", False)
-                titulo_elegido = datos.get("titulo_elegido", "")
-                historia_progreso = datos.get("historia_progreso", 1)
-                misiones_diarias = datos.get("misiones_diarias", {})
-                ultima_fecha_misiones = datos.get("ultima_fecha_misiones", "")
-                ultima_ruleta = datos.get("ultima_ruleta", "")
-                medallas_tipos = datos.get("medallas_tipos", {})
-                inventario = datos.get("inventario", {"revivir": 0})
-                return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            pass
+    try:
+        response = supabase.table("usuarios").select("*").eq("user_id", DEVICE_ID).execute()
+        if response.data and len(response.data) > 0:
+            row = response.data[0]
+            pokedex = {int(k): v for k, v in row.get("pokedex", {}).items()}
+            shinydex = {int(k): v for k, v in row.get("shinydex", {}).items()}
+            racha_max = row.get("racha_maxima", 0)
+            logros = row.get("logros", {})
+            aciertos = row.get("aciertos_totales", 0)
+            fallos = row.get("fallos_totales", 0)
+            monedas = row.get("monedas", 10)
+            entrenador_actual = row.get("entrenador_actual", "Rojo")
+            entrenadores_desbloqueados = row.get("entrenadores_desbloqueados", ["Rojo"])
+            huevos = row.get("huevos", [])
+            cartas_coleccion = row.get("cartas_coleccion", [])
+            companero_id = row.get("companero_id", 25)
+            companero_shiny = row.get("companero_shiny", False)
+            titulo_elegido = row.get("titulo_elegido", "")
+            historia_progreso = row.get("historia_progreso", 1)
+            misiones_diarias = row.get("misiones_diarias", {})
+            ultima_fecha_misiones = row.get("ultima_fecha_misiones", "")
+            ultima_ruleta = row.get("ultima_ruleta", "")
+            medallas_tipos = row.get("medallas_tipos", {})
+            inventario = row.get("inventario", {"revivir": 0})
+            return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
+    except Exception as e:
+        print(f"Error cargando desde Supabase: {e}")
+        
     return {}, {}, 0, {}, 0, 0, 10, "Rojo", ["Rojo"], [], [], 25, False, "", 1, {}, "", "", {}, {"revivir": 0}
 
 def guardar_progreso():
     datos = {
-        "pokedex": st.session_state["pokedex_capturados"],
-        "shinydex": st.session_state["shinydex_capturados"],
+        "user_id": DEVICE_ID,
+        "pokedex": {str(k): v for k, v in st.session_state["pokedex_capturados"].items()},
+        "shinydex": {str(k): v for k, v in st.session_state["shinydex_capturados"].items()},
         "racha_maxima": st.session_state["racha_maxima"],
         "logros": st.session_state["logros"],
         "aciertos_totales": st.session_state["aciertos_totales"],
@@ -209,10 +227,9 @@ def guardar_progreso():
         "inventario": st.session_state["inventario"]
     }
     try:
-        with open(ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
-            json.dump(datos, f, ensure_ascii=False, indent=4)
-    except (OSError, TypeError, ValueError):
-        pass
+        supabase.table("usuarios").upsert(datos).execute()
+    except Exception as e:
+        print(f"Error guardando en Supabase: {e}")
 
 if "pokedex_capturados" not in st.session_state:
     p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini, tit_ini, hist_ini, mis_ini, f_mis_ini, u_rul_ini, med_ini, inv_ini = cargar_progreso()
@@ -535,7 +552,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- PESTAÑAS PRINCIPALES (Combates reemplazado por Progresión de Rangos) ---
+# --- PESTAÑAS PRINCIPALES ---
 tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_progresion, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "🏆 Progresión", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
@@ -609,7 +626,6 @@ with tab_jugar:
         modo_actual = st.session_state.get("modo_juego", "clasico")
         st.title("🎯 Partida Arcade Activa")
         
-        # --- PANEL DE ESTADO Y RANGO ACTUAL EN TIEMPO REAL ---
         rango_actual_obj = obtener_rango_por_aciertos(st.session_state["aciertos_totales"])
         st.markdown(f"""
         <div style="background: rgba(25, 25, 50, 0.8); border: 2px solid #ffcc00; padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-around; text-align: center;">
@@ -923,8 +939,6 @@ with tab_progresion:
     for idx, rango in enumerate(RANGOS_PROGRESION):
         superado = aciertos_actuales_usuario >= rango["aciertos"]
         es_actual = rango["nombre"] == rango_actual_obj["nombre"]
-        
-        # Calcular siguiente hito para la barra de progreso o descripción
         siguiente_aciertos = RANGOS_PROGRESION[idx + 1]["aciertos"] if idx + 1 < len(RANGOS_PROGRESION) else "Meta Máxima"
         
         c1, c2, c3 = st.columns([1, 4, 2])
@@ -958,8 +972,9 @@ with tab_safari:
                     pid_rand = random.randint(1, 500)
                     res_sp = obtener_datos_especie(pid_rand)
                     if res_sp:
-                        nombres_atrapados.append(limpiar_nombre_pokemon(res_sp["name"]))
-                        st.session_state["pokedex_capturados"][pid_rand] = {"nombre": limpiar_nombre_pokemon(res_sp["name"]), "gen": 1}
+                        nombre_limpio = limpiar_nombre_pokemon(res_sp["name"])
+                        nombres_atrapados.append(nombre_limpio)
+                        st.session_state["pokedex_capturados"][pid_rand] = {"nombre": nombre_limpio, "gen": 1}
             
             guardar_progreso()
             st.success(f"🌟 ¡Sesión Safari finalizada! Encuentros: {encontrados} | ¡Atrapaste {atrapados} Pokémon: {', '.join(nombres_atrapados) if nombres_atrapados else 'Ninguno'}!")
@@ -973,7 +988,7 @@ with tab_guarderia:
     if not st.session_state["huevos"]:
         st.info("No tienes huevos en incubación. ¡Adquiere uno en el Mercado o en la Ruleta!")
     else:
-        for idx, h in enumerate(st.session_state["huevos"]):
+        for idx, h in enumerate(list(st.session_state["huevos"])):
             progreso = min(1.0, h["pasos_actuales"] / h["pasos_necesarios"])
             st.markdown(f"### 🥚 {h['tipo']} ({h['pasos_actuales']} / {h['pasos_necesarios']} pasos)")
             st.progress(progreso)
@@ -1196,9 +1211,10 @@ with tab_ajustes:
 
     st.divider()
     if st.button("🗑️ Borrar Progreso de Partida", type="secondary", use_container_width=True):
-        if os.path.exists(ARCHIVO_GUARDADO):
-            try: os.remove(ARCHIVO_GUARDADO)
-            except OSError: pass
+        try:
+            supabase.table("usuarios").delete().eq("user_id", DEVICE_ID).execute()
+        except Exception:
+            pass
             
         st.session_state["pokedex_capturados"] = {}
         st.session_state["shinydex_capturados"] = {}
