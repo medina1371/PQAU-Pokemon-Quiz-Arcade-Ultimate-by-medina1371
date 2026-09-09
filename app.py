@@ -92,17 +92,41 @@ st.markdown("""
         font-size: 13px;
         border: 1px solid #ffcc00;
     }
+    /* Estilo de notificación flotante abajo */
+    .toast-notification {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e1e3f;
+        color: #ffcc00;
+        padding: 12px 24px;
+        border-radius: 30px;
+        border: 2px solid #ffcc00;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+        z-index: 9999;
+        font-weight: bold;
+        font-size: 15px;
+        text-align: center;
+        animation: fadeInOut 4s ease forwards;
+    }
+    @keyframes fadeInOut {
+        0% { opacity: 0; bottom: 0px; }
+        15% { opacity: 1; bottom: 20px; }
+        85% { opacity: 1; bottom: 20px; }
+        100% { opacity: 0; bottom: 0px; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- GESTIÓN DE USUARIO ÚNICO ---
+# --- GESTIÓN DE USUARIO ÚNICO (POR DISPOSITIVO) ---
 if "user_id" not in st.query_params:
     st.query_params["user_id"] = str(uuid.uuid4())[:8]
 
 USER_ID = st.query_params["user_id"]
 ARCHIVO_GUARDADO = f"pokedex_save_{USER_ID}.json"
 
-# --- PERSISTENCIA (JSON LOCAL) ---
+# --- PERSISTENCIA (JSON LOCAL AISLADO POR DISPOSITIVO) ---
 def cargar_progreso():
     if os.path.exists(ARCHIVO_GUARDADO):
         try:
@@ -127,10 +151,11 @@ def cargar_progreso():
                 ultima_fecha_misiones = datos.get("ultima_fecha_misiones", "")
                 ultima_ruleta = datos.get("ultima_ruleta", "")
                 medallas_tipos = datos.get("medallas_tipos", {})
-                return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos
+                inventario = datos.get("inventario", {"revivir": 0})
+                return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
-    return {}, {}, 0, {}, 0, 0, 10, "Rojo", ["Rojo"], [], [], 25, False, "", 1, {}, "", "", {}
+    return {}, {}, 0, {}, 0, 0, 10, "Rojo", ["Rojo"], [], [], 25, False, "", 1, {}, "", "", {}, {"revivir": 0}
 
 def guardar_progreso():
     datos = {
@@ -152,7 +177,8 @@ def guardar_progreso():
         "misiones_diarias": st.session_state["misiones_diarias"],
         "ultima_fecha_misiones": st.session_state["ultima_fecha_misiones"],
         "ultima_ruleta": st.session_state["ultima_ruleta"],
-        "medallas_tipos": st.session_state["medallas_tipos"]
+        "medallas_tipos": st.session_state["medallas_tipos"],
+        "inventario": st.session_state["inventario"]
     }
     try:
         with open(ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
@@ -161,7 +187,7 @@ def guardar_progreso():
         pass
 
 if "pokedex_capturados" not in st.session_state:
-    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini, tit_ini, hist_ini, mis_ini, f_mis_ini, u_rul_ini, med_ini = cargar_progreso()
+    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini, tit_ini, hist_ini, mis_ini, f_mis_ini, u_rul_ini, med_ini, inv_ini = cargar_progreso()
     st.session_state["pokedex_capturados"] = p_ini
     st.session_state["shinydex_capturados"] = s_ini
     st.session_state["racha_maxima"] = rm_ini
@@ -181,6 +207,7 @@ if "pokedex_capturados" not in st.session_state:
     st.session_state["ultima_fecha_misiones"] = f_mis_ini
     st.session_state["ultima_ruleta"] = u_rul_ini
     st.session_state["medallas_tipos"] = med_ini
+    st.session_state["inventario"] = inv_ini
 
 if "racha" not in st.session_state: st.session_state["racha"] = 0
 if "puntos" not in st.session_state: st.session_state["puntos"] = 0
@@ -193,6 +220,7 @@ if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] 
 if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
 if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recien_abierta"] = None
 if "mostrar_consola_trucos" not in st.session_state: st.session_state["mostrar_consola_trucos"] = False
+if "premio_ruleta_reclamado_reciente" not in st.session_state: st.session_state["premio_ruleta_reclamado_reciente"] = None
 
 # Estados específicos Modo Historia
 if "en_historia" not in st.session_state: st.session_state["en_historia"] = False
@@ -491,9 +519,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- PESTAÑAS PRINCIPALES ---
-tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
-    "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
+# --- PESTAÑAS PRINCIPALES (INCLUYENDO MOCHILA) ---
+tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
+    "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
 # --- 1. JUGAR ---
@@ -645,7 +673,7 @@ with tab_jugar:
 # --- 2. MODO HISTORIA ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
-    st.write("Dificultad sin límite de tiempo: avanza superando los retos con tus 3 vidas.")
+    st.write("Dificultad sin límite de tiempo: avanza superando los retos con tus vidas.")
     st.divider()
 
     if not st.session_state["en_historia"]:
@@ -754,23 +782,26 @@ with tab_misiones:
         else: st.info("⏳ En curso")
         st.divider()
 
-# --- 4. RULETA DIARIA (CON ANIMACIÓN INTEGRADA) ---
+# --- 4. RULETA DIARIA ---
 with tab_ruleta:
     st.title("🎡 Ruleta Diaria de Premios")
     st.write("Gira la ruleta una vez al día para conseguir premios exclusivos.")
     st.divider()
     
     hoy_str = str(datetime.date.today())
+    
+    # Notificación abajo si acaba de reclamar un premio
+    if st.session_state.get("premio_ruleta_reclamado_reciente"):
+        premio_texto = st.session_state["premio_ruleta_reclamado_reciente"]
+        st.markdown(f'<div class="toast-notification">🎉 ¡Has ganado: {premio_texto}!</div>', unsafe_allow_html=True)
+
     if st.session_state.get("ultima_ruleta") == hoy_str:
         st.info("⏰ Ya has girado la ruleta hoy. ¡Vuelve mañana para tu próxima tirada!")
     else:
-        # Componente visual interactivo con animación de ruleta integrada en HTML/JS
         ruleta_html = """
         <div style="text-align: center;">
             <div id="wheel-container" style="position: relative; width: 220px; height: 220px; margin: 0 auto 20px auto;">
-                <div id="wheel" style="width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(#ffcc00 0deg 72deg, #ff5252 72deg 144deg, #448aff 144deg 216deg, #00e676 216deg 288deg, #e040fb 288deg 360deg); border: 5px solid #fff; box-shadow: 0 0 20px rgba(255,204,0,0.5); transition: transform 4s cubic-bezier(0.15, 0.9, 0.2, 1); display: flex; align-items: center; justify-content: center;">
-                    <div style="background: #111122; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; color: #ffcc00; font-weight: bold; font-size: 12px;">GIF</div>
-                </div>
+                <div id="wheel" style="width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(#ffcc00 0deg 270deg, #ff5252 270deg 324deg, #448aff 324deg 336.6deg, #00e676 336.6deg 354.6deg, #e040fb 354.6deg 360deg); border: 5px solid #fff; box-shadow: 0 0 20px rgba(255,204,0,0.5);"></div>
                 <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid #ffeb3b; z-index: 10;"></div>
             </div>
         </div>
@@ -779,43 +810,83 @@ with tab_ruleta:
 
         st.markdown("""
         <div style="background: #181832; border: 2px dashed #ffcc00; padding: 20px; border-radius: 16px; text-align: center;">
-            <h3 style="color: #ffcc00; margin-top:0;">🎰 ¡Tirada Diaria Disponible!</h3>
-            <p style="color: #bbb; font-size: 14px;">Premios en juego: 50 a 500 Poké-Coins, Huevos Shiny directos y Fragmentos TCG.</p>
+            <h3 style="color: #ffcc00; margin-top:0;">🎰 Probabilidades de la Ruleta:</h3>
+            <p style="color: #bbb; font-size: 13px; margin: 2px;">• 100 Poké-Coins (75%)</p>
+            <p style="color: #bbb; font-size: 13px; margin: 2px;">• 250 Poké-Coins (15%)</p>
+            <p style="color: #bbb; font-size: 13px; margin: 2px;">• 500 Poké-Coins (3.5%)</p>
+            <p style="color: #bbb; font-size: 13px; margin: 2px;">• Revivir para el modo vidas (5%)</p>
+            <p style="color: #bbb; font-size: 13px; margin: 2px;">• Huevo Shiny (1.5%)</p>
         </div>
         """, unsafe_allow_html=True)
         st.write("")
         
         if st.button("✨ ¡Girar la Ruleta Ahora!", use_container_width=True, type="primary"):
             st.session_state["ultima_ruleta"] = hoy_str
-            premios_posibles = [
-                {"tipo": "monedas", "valor": 50, "texto": "50 Poké-Coins"},
-                {"tipo": "monedas", "valor": 150, "texto": "150 Poké-Coins"},
-                {"tipo": "monedas", "valor": 500, "texto": "¡JACKPOT! 500 Poké-Coins"},
-                {"tipo": "huevo_shiny", "valor": 1, "texto": "¡Huevo Shiny Directo!"},
-                {"tipo": "tcg", "valor": 3, "texto": "3 Cartas TCG de bonificación"}
-            ]
-            premio_ganado = random.choice(premios_posibles)
             
-            if premio_ganado["tipo"] == "monedas":
-                st.session_state["monedas"] += premio_ganado["valor"]
-            elif premio_ganado["tipo"] == "huevo_shiny":
-                st.session_state["huevos"].append({"tipo": "Huevo Shiny Directo", "pasos_actuales": 0, "pasos_necesarios": 1, "prob_shiny": 1.0, "eclosionado": False})
-            elif premio_ganado["tipo"] == "tcg":
-                poke_id = random.randint(1, 151)
-                res_p = obtener_datos_pokemon(poke_id)
-                res_s = obtener_datos_especie(poke_id)
-                if res_p and res_s:
-                    st.session_state["cartas_coleccion"].append({"nombre": limpiar_nombre_pokemon(res_s["name"]), "rareza": "Holográfica", "imagen": res_p["sprites"]["front_default"]})
+            # Sorteo basado estrictamente en las probabilidades solicitadas (pesos sobre 1000)
+            # 75% = 750, 15% = 150, 3.5% = 35, 5% = 50, 1.5% = 15
+            eleccion = random.choices(
+                ["100_coins", "250_coins", "500_coins", "revivir", "huevo_shiny"],
+                weights=[750, 150, 35, 50, 15],
+                k=1
+            )[0]
             
+            if eleccion == "100_coins":
+                st.session_state["monedas"] += 100
+                texto_premio = "100 Poké-Coins"
+            elif eleccion == "250_coins":
+                st.session_state["monedas"] += 250
+                texto_premio = "250 Poké-Coins"
+            elif eleccion == "500_coins":
+                st.session_state["monedas"] += 500
+                texto_premio = "¡JACKPOT! 500 Poké-Coins"
+            elif eleccion == "revivir":
+                st.session_state["inventario"]["revivir"] = st.session_state["inventario"].get("revivir", 0) + 1
+                texto_premio = "1x Revivir (Modo Vidas)"
+            elif eleccion == "huevo_shiny":
+                st.session_state["huevos"].append({"tipo": "Huevo Shiny de Ruleta", "pasos_actuales": 0, "pasos_necesarios": 1, "prob_shiny": 1.0, "eclosionado": False})
+                texto_premio = "¡Huevo Shiny Directo!"
+            
+            st.session_state["premio_ruleta_reclamado_reciente"] = texto_premio
             guardar_progreso()
+            
             with st.spinner("🎡 Girando la ruleta..."):
                 import time
-                time.sleep(2)
+                time.sleep(1.8)
             st.balloons()
-            st.success(f"🎉 ¡Has ganado: {premio_ganado['texto']}!")
             st.rerun()
 
-# --- 5. COMBATES DE ENTRENADORES ---
+# --- 5. MOCHILA / BOLSILLO DE OBJETOS ---
+with tab_mochila:
+    st.title("🎒 Mochila / Bolsillo de Objetos")
+    st.write("Gestiona tus objetos especiales de supervivencia y aventura.")
+    st.divider()
+    
+    cant_revivir = st.session_state["inventario"].get("revivir", 0)
+    
+    c_m1, c_m2 = st.columns([1, 3])
+    with c_m1:
+        st.markdown("""
+        <div style="background: #15152b; border: 2px solid #ff5252; border-radius: 12px; padding: 15px; text-align: center;">
+            <h2 style="margin:0; color:#ff5252;">❤️</h2>
+            <h4 style="color:white; margin:5px 0 0 0;">Revivir</h4>
+        </div>
+        """, unsafe_allow_html=True)
+    with c_m2:
+        st.markdown(f"### Objeto: Revivir")
+        st.write(f"Cantidad disponible en bolsillo: **{cant_revivir}**")
+        st.write("Sirve para recuperar una vida perdida o continuar tu progreso en los modos de desafío.")
+        if cant_revivir > 0:
+            if st.button("Usar Revivir (Añadir +1 Vida en Historia)", key="usar_revivir_btn"):
+                st.session_state["inventario"]["revivir"] -= 1
+                st.session_state["historia_vidas"] += 1
+                guardar_progreso()
+                st.success("✨ ¡Has usado un Revivir! Se te ha sumado +1 vida en tu partida actual.")
+                st.rerun()
+        else:
+            st.info("No tienes revivires. Consíguelos girando la Ruleta Diaria.")
+
+# --- 6. COMBATES DE ENTRENADORES ---
 with tab_combates:
     st.title("⚔️ Combates de Gimnasio por Turnos")
     st.write("Enfréntate a Líderes de Gimnasio utilizando tus conocimientos y estrategia.")
@@ -843,7 +914,7 @@ with tab_combates:
                     st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex para mejorar tu equipo!")
         st.divider()
 
-# --- 6. ZONA SAFARI ---
+# --- 7. ZONA SAFARI ---
 with tab_safari:
     st.title("🗺️ Zona Safari: Captura Temporal")
     st.write("Atrapa tantos Pokémon salvajes como puedas en una sesión exprés de velocidad.")
@@ -869,7 +940,7 @@ with tab_safari:
         else:
             st.error("❌ No tienes suficientes Poké-Coins (necesitas 30).")
 
-# --- 7. GUARDERÍA ---
+# --- 8. GUARDERÍA ---
 with tab_guarderia:
     st.title("🥚 Guardería Pokémon")
     st.write("Incuba tus huevos ganando aciertos en las partidas arcade.")
@@ -889,7 +960,7 @@ with tab_guarderia:
                     st.rerun()
             st.divider()
 
-# --- 8. TCG ---
+# --- 9. TCG ---
 with tab_tcg:
     st.title("🎴 Álbum de Cartas TCG e Intercambio")
     st.write("Colecciona cartas o intercambia 2 repetidas por un sobre nuevo.")
@@ -939,7 +1010,7 @@ with tab_tcg:
                 </div>
                 """, unsafe_allow_html=True)
 
-# --- 9. ENTRENADORES ---
+# --- 10. ENTRENADORES ---
 with tab_entrenadores:
     st.title("👥 Entrenadores")
     st.write("Desbloquea avatares para conseguir bonificaciones pasivas de Poké-Coins.")
@@ -969,7 +1040,7 @@ with tab_entrenadores:
                     else: st.error("❌ Monedas insuficientes")
         st.divider()
 
-# --- 10. MERCADO ---
+# --- 11. MERCADO ---
 with tab_mercado:
     st.title("🛒 Bazar Arcade")
     st.write(f"🪙 Monedas Disponibles: **{st.session_state['monedas']}**")
@@ -1010,7 +1081,7 @@ with tab_mercado:
                     st.rerun()
             else: st.error("❌ Monedas insuficientes")
 
-# --- 11. POKÉDEX ---
+# --- 12. POKÉDEX ---
 with tab_pokedex:
     st.title("📖 Pokédex Web")
     st.write(f"Pokémon registrados: **{len(st.session_state['pokedex_capturados'])} / 1025**")
@@ -1021,7 +1092,7 @@ with tab_pokedex:
         with c2: st.write(f"### #{pid:03d} - {data['nombre']}")
         st.divider()
 
-# --- 12. SHINYMEX ---
+# --- 13. SHINYMEX ---
 with tab_shinydex:
     st.title("✨ ShinyDex")
     st.write(f"Pokémon variocolor: **{len(st.session_state['shinydex_capturados'])}**")
@@ -1035,7 +1106,7 @@ with tab_shinydex:
             with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
             st.divider()
 
-# --- 13. STATS ---
+# --- 14. STATS ---
 with tab_stats:
     st.title("📊 Estadísticas, Medallas Elementales y Logros")
     comprobar_logros()
@@ -1066,7 +1137,7 @@ with tab_stats:
             else:
                 st.info(f"🔒 **{datos['titulo']}** (Pendiente) — {datos['desc']}")
 
-# --- 14. AJUSTES ---
+# --- 15. AJUSTES ---
 with tab_ajustes:
     st.title("⚙️ Ajustes y Configuración")
     st.write("Gestiona tu título de perfil, tu compañero y el almacenamiento.")
@@ -1127,5 +1198,6 @@ with tab_ajustes:
         st.session_state["titulo_elegido"] = ""
         st.session_state["historia_progreso"] = 1
         st.session_state["medallas_tipos"] = {}
+        st.session_state["inventario"] = {"revivir": 0}
         st.success("✅ Progreso restablecido.")
         st.rerun()
