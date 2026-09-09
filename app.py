@@ -15,7 +15,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS CSS REVOLUCIONADOS (MEJORA DE INTERFAZ) ---
+# --- ESTILOS CSS REVOLUCIONADOS ---
 st.markdown("""
 <style>
     .stApp {
@@ -92,7 +92,6 @@ st.markdown("""
         font-size: 13px;
         border: 1px solid #ffcc00;
     }
-    /* Estilo de notificación flotante abajo */
     .toast-notification {
         position: fixed;
         bottom: 20px;
@@ -119,12 +118,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- GESTIÓN DE USUARIO ÚNICO (POR DISPOSITIVO) ---
-if "user_id" not in st.query_params:
-    st.query_params["user_id"] = str(uuid.uuid4())[:8]
+# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
+# Usamos JavaScript para leer/escribir un ID fijo en el navegador del usuario
+componentes.html("""
+<script>
+    const STORAGE_KEY = "pokemon_arcade_device_id";
+    let deviceId = localStorage.getItem(STORAGE_KEY);
+    if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem(STORAGE_KEY, deviceId);
+    }
+    // Comunicamos el ID al contenedor de Streamlit si es necesario mediante parámetros de consulta ocultos
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('device_id') !== deviceId) {
+        urlParams.set('device_id', deviceId);
+        window.location.search = urlParams.toString();
+    }
+</script>
+""", height=0)
 
-USER_ID = st.query_params["user_id"]
-ARCHIVO_GUARDADO = f"pokedex_save_{USER_ID}.json"
+if "device_id" not in st.query_params:
+    st.query_params["device_id"] = str(uuid.uuid4())[:8]
+
+DEVICE_ID = st.query_params["device_id"]
+ARCHIVO_GUARDADO = f"pokedex_save_{DEVICE_ID}.json"
 
 # --- PERSISTENCIA (JSON LOCAL AISLADO POR DISPOSITIVO) ---
 def cargar_progreso():
@@ -519,7 +536,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- PESTAÑAS PRINCIPALES (INCLUYENDO MOCHILA) ---
+# --- PESTAÑAS PRINCIPALES ---
 tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
@@ -790,7 +807,6 @@ with tab_ruleta:
     
     hoy_str = str(datetime.date.today())
     
-    # Notificación abajo si acaba de reclamar un premio
     if st.session_state.get("premio_ruleta_reclamado_reciente"):
         premio_texto = st.session_state["premio_ruleta_reclamado_reciente"]
         st.markdown(f'<div class="toast-notification">🎉 ¡Has ganado: {premio_texto}!</div>', unsafe_allow_html=True)
@@ -823,8 +839,6 @@ with tab_ruleta:
         if st.button("✨ ¡Girar la Ruleta Ahora!", use_container_width=True, type="primary"):
             st.session_state["ultima_ruleta"] = hoy_str
             
-            # Sorteo basado estrictamente en las probabilidades solicitadas (pesos sobre 1000)
-            # 75% = 750, 15% = 150, 3.5% = 35, 5% = 50, 1.5% = 15
             eleccion = random.choices(
                 ["100_coins", "250_coins", "500_coins", "revivir", "huevo_shiny"],
                 weights=[750, 150, 35, 50, 15],
@@ -856,7 +870,7 @@ with tab_ruleta:
             st.balloons()
             st.rerun()
 
-# --- 5. MOCHILA / BOLSILLO DE OBJETOS ---
+# --- 5. MOCHILA ---
 with tab_mochila:
     st.title("🎒 Mochila / Bolsillo de Objetos")
     st.write("Gestiona tus objetos especiales de supervivencia y aventura.")
@@ -886,7 +900,7 @@ with tab_mochila:
         else:
             st.info("No tienes revivires. Consíguelos girando la Ruleta Diaria.")
 
-# --- 6. COMBATES DE ENTRENADORES ---
+# --- 6. COMBATES ---
 with tab_combates:
     st.title("⚔️ Combates de Gimnasio por Turnos")
     st.write("Enfréntate a Líderes de Gimnasio utilizando tus conocimientos y estrategia.")
@@ -911,7 +925,7 @@ with tab_combates:
                     guardar_progreso()
                     st.success(f"🏆 ¡Victoria aplastante contra {lid['nombre']}! Ganas 🪙 {lid['recompensa']}")
                 else:
-                    st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex para mejorar tu equipo!")
+                    st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex!")
         st.divider()
 
 # --- 7. ZONA SAFARI ---
