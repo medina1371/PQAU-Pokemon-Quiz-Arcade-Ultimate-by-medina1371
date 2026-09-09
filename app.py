@@ -109,7 +109,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
+# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---[cite: 4]
 components.html("""
 <script>
     const STORAGE_KEY = "pokemon_arcade_device_id";
@@ -132,7 +132,29 @@ if "device_id" not in st.query_params:
 DEVICE_ID = st.query_params["device_id"]
 ARCHIVO_GUARDADO = f"pokedex_save_{DEVICE_ID}.json"
 
-# --- PERSISTENCIA (JSON LOCAL AISLADO POR DISPOSITIVO) ---
+# --- TABLA DE RANGOS DE PROGRESIÓN ---
+RANGOS_PROGRESION = [
+    {"nombre": "Bronce", "aciertos": 0, "icono": "🥉"},
+    {"nombre": "Plata", "aciertos": 15, "icono": "🥈"},
+    {"nombre": "Oro", "aciertos": 25, "icono": "🥇"},
+    {"nombre": "Diamante", "aciertos": 40, "icono": "💎"},
+    {"nombre": "Perla", "aciertos": 60, "icono": "🔮"},
+    {"nombre": "Platino", "aciertos": 65, "icono": "🛡️"},
+    {"nombre": "Rubí", "aciertos": 70, "icono": "🔴"},
+    {"nombre": "Zafiro", "aciertos": 85, "icono": "🔵"},
+    {"nombre": "Esmeralda", "aciertos": 100, "icono": "💚"}
+]
+
+def obtener_rango_por_aciertos(aciertos_totales):
+    rango_actual = RANGOS_PROGRESION[0]
+    for r in RANGOS_PROGRESION:
+        if aciertos_totales >= r["aciertos"]:
+            rango_actual = r
+        else:
+            break
+    return rango_actual
+
+# --- PERSISTENCIA (JSON LOCAL AISLADO POR DISPOSITIVO) ---[cite: 4]
 def cargar_progreso():
     if os.path.exists(ARCHIVO_GUARDADO):
         try:
@@ -294,16 +316,8 @@ def agregar_notificacion(texto, tipo="success"):
     st.session_state["ultima_notificacion"] = {"texto": texto, "tipo": tipo}
 
 def obtener_rango_competitivo():
-    r = st.session_state["racha_maxima"]
-    if r >= 45: return '<span style="color: #00e676; font-weight: bold;">🟢 Rango Esmeralda</span>'
-    elif r >= 38: return '<span style="color: #00bcd4; font-weight: bold;">🔷 Rango Zafiro</span>'
-    elif r >= 32: return '<span style="color: #ff5252; font-weight: bold;">🔴 Rango Rubí</span>'
-    elif r >= 26: return '<span style="color: #e040fb; font-weight: bold;">💠 Rango Platino</span>'
-    elif r >= 20: return '<span style="color: #ffeb3b; font-weight: bold;">🐚 Rango Perla</span>'
-    elif r >= 15: return '<span style="color: #00e5ff; font-weight: bold;">💎 Rango Diamante</span>'
-    elif r >= 10: return '<span style="color: #ffd700; font-weight: bold;">🥇 Rango Oro</span>'
-    elif r >= 5: return '<span style="color: #c0c0c0; font-weight: bold;">🥈 Rango Plata</span>'
-    else: return '<span style="color: #cd7f32; font-weight: bold;">🥉 Rango Bronce</span>'
+    rango = obtener_rango_por_aciertos(st.session_state["aciertos_totales"])
+    return f'<span style="color: #ffcc00; font-weight: bold;">{rango["icono"]} Rango {rango["nombre"]}</span>'
 
 def obtener_titulo_entrenador():
     if st.session_state.get("titulo_elegido"):
@@ -521,8 +535,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
-    "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
+# --- PESTAÑAS PRINCIPALES (Combates reemplazado por Progresión de Rangos) ---
+tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_progresion, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
+    "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "🏆 Progresión", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
 with tab_jugar:
@@ -594,6 +609,21 @@ with tab_jugar:
         modo_actual = st.session_state.get("modo_juego", "clasico")
         st.title("🎯 Partida Arcade Activa")
         
+        # --- PANEL DE ESTADO Y RANGO ACTUAL EN TIEMPO REAL ---
+        rango_actual_obj = obtener_rango_por_aciertos(st.session_state["aciertos_totales"])
+        st.markdown(f"""
+        <div style="background: rgba(25, 25, 50, 0.8); border: 2px solid #ffcc00; padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-around; text-align: center;">
+            <div>
+                <p style="margin: 0; color: #aaa; font-size: 12px;">Aciertos Totales</p>
+                <h3 style="margin: 0; color: #00e676;">{st.session_state["aciertos_totales"]}</h3>
+            </div>
+            <div>
+                <p style="margin: 0; color: #aaa; font-size: 12px;">Rango Actual</p>
+                <h3 style="margin: 0; color: #ffcc00;">{rango_actual_obj['icono']} {rango_actual_obj['nombre']}</h3>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         if st.session_state["ultima_notificacion"]:
             msg = st.session_state["ultima_notificacion"]
             if msg["tipo"] == "success": st.success(msg["texto"])
@@ -604,7 +634,7 @@ with tab_jugar:
         c1, c2, c3, c4 = st.columns(4)
         with c1: st.metric("⭐ Puntos", st.session_state["puntos"])
         with c2: st.metric("🔥 Racha", st.session_state["racha"])
-        with c3: st.metric("🏅 Rango", obtener_rango_competitivo().split(">")[1].split("<")[0])
+        with c3: st.metric("🏅 Rango", rango_actual_obj["nombre"])
         with c4: st.metric("🪙 Monedas", st.session_state["monedas"])
         st.divider()
         
@@ -818,8 +848,6 @@ with tab_ruleta:
         
         if st.button("✨ ¡Girar la Ruleta Ahora!", use_container_width=True, type="primary"):
             st.session_state["ultima_ruleta"] = hoy_str
-            
-            # --- ANIMACIÓN Y EFECTOS VISUALES DE RULETA ---
             with st.spinner("🎡 Girando la ruleta con fuerza... Tic, tic, tic..."):
                 time.sleep(1.2)
             with st.spinner("✨ ¡Atención! La ruleta está frenando sobre un premio increíble..."):
@@ -881,31 +909,36 @@ with tab_mochila:
         else:
             st.info("No tienes revivires. Consíguelos girando la Ruleta Diaria.")
 
-with tab_combates:
-    st.title("⚔️ Combates de Gimnasio por Turnos")
-    st.write("Enfréntate a Líderes de Gimnasio utilizando tus conocimientos y estrategia.")
+with tab_progresion:
+    st.title("🏆 Escalera de Progresión de Rangos")
+    st.write("Acumula aciertos totales en los minijuegos para ascender de categoría.")
     st.divider()
     
-    lideres = [
-        {"nombre": "Brock (Ciudad Plateada)", "tipo": "Roca", "recompensa": 300, "avatar": "https://play.pokemonshowdown.com/sprites/trainers/brock.png"},
-        {"nombre": "Misty (Ciudad Celeste)", "tipo": "Agua", "recompensa": 500, "avatar": "https://play.pokemonshowdown.com/sprites/trainers/misty.png"},
-        {"nombre": "Lt. Surge (Ciudad Carmín)", "tipo": "Eléctrico", "recompensa": 800, "avatar": "https://play.pokemonshowdown.com/sprites/trainers/ltsurge.png"}
-    ]
+    aciertos_actuales_usuario = st.session_state["aciertos_totales"]
+    rango_actual_obj = obtener_rango_por_aciertos(aciertos_actuales_usuario)
     
-    for idx, lid in enumerate(lideres):
-        c1, c2, c3 = st.columns([1, 3, 2])
-        with c1: st.image(lid["avatar"], width=65)
-        with c2: st.markdown(f"### {lid['nombre']}\nEspecialidad: **{lid['tipo']}** | Recompensa: 🪙 {lid['recompensa']}")
+    st.info(f"📍 **Tu estado actual:** Tienes **{aciertos_actuales_usuario} aciertos** totales y tu rango actual es **{rango_actual_obj['icono']} {rango_actual_obj['nombre']}**.")
+    st.divider()
+    
+    for idx, rango in enumerate(RANGOS_PROGRESION):
+        superado = aciertos_actuales_usuario >= rango["aciertos"]
+        es_actual = rango["nombre"] == rango_actual_obj["nombre"]
+        
+        # Calcular siguiente hito para la barra de progreso o descripción
+        siguiente_aciertos = RANGOS_PROGRESION[idx + 1]["aciertos"] if idx + 1 < len(RANGOS_PROGRESION) else "Meta Máxima"
+        
+        c1, c2, c3 = st.columns([1, 4, 2])
+        with c1:
+            st.markdown(f"<h2 style='text-align: center; margin:0;'>{rango['icono']}</h2>", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"### Rango {rango['nombre']}\nRequisito: **{rango['aciertos']} aciertos** *(Siguiente meta: {siguiente_aciertos})*")
         with c3:
-            if st.button(f"Luchar vs {lid['tipo']}", key=f"batalla_lid_{idx}", use_container_width=True):
-                puntos_usuario = len(st.session_state["pokedex_capturados"]) * 2 + random.randint(20, 80)
-                puntos_lider = 50 + (idx * 40)
-                if puntos_usuario >= puntos_lider:
-                    st.session_state["monedas"] += lid["recompensa"]
-                    guardar_progreso()
-                    st.success(f"🏆 ¡Victoria aplastante contra {lid['nombre']}! Ganas 🪙 {lid['recompensa']}")
-                else:
-                    st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex!")
+            if es_actual:
+                st.success("⭐ Rango Actual")
+            elif superado:
+                st.info("✅ Superado")
+            else:
+                st.warning("🔒 Bloqueado")
         st.divider()
 
 with tab_safari:
@@ -1099,7 +1132,7 @@ with tab_stats:
     
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     with col_s1: st.metric("🔥 Récord Racha", st.session_state["racha_maxima"])
-    with col_s2: st.metric("🏅 Rango", obtener_rango_competitivo().split(">")[1].split("<")[0])
+    with col_s2: st.metric("🏅 Rango", obtener_rango_por_aciertos(st.session_state["aciertos_totales"])["nombre"])
     with col_s3: st.metric("✅ Aciertos", st.session_state["aciertos_totales"])
     with col_s4: st.metric("❌ Fallos", st.session_state["fallos_totales"])
     
