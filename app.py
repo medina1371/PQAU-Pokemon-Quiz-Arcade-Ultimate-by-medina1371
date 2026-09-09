@@ -637,16 +637,17 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (TEMPORIZADOR LIMPIO SIN BOTONES VISIBLES) ---
+# --- 2. MODO HISTORIA (CONTROL DE TIEMPO Y SALIDA FORZADA AL MENÚ) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
     st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real**.")
     st.divider()
     
-    # Manejador invisible de fin de tiempo mediante query param para recargar limpiamente sin botones de relleno
+    # Manejador absoluto de salida por tiempo agotado (Fuerza limpia el estado y regresa al menú principal)
     if st.query_params.get("timeout_trigger") == "true":
         st.query_params.clear()
         st.session_state["en_historia"] = False
+        st.session_state["historia_vidas"] = 3
         st.error("Se te agotó el tiempo, prueba otra vez")
         st.stop()
 
@@ -769,10 +770,11 @@ with tab_historia:
                         st.session_state["historia_vidas"] -= 1
                         if st.session_state["historia_vidas"] <= 0:
                             st.session_state["en_historia"] = False
+                            st.session_state["historia_vidas"] = 3
                             st.error("Se te agotó el tiempo, prueba otra vez")
-                            st.rerun()
+                            st.stop()
                         else:
-                            st.warning(f"Se te agotó el tiempo, prueba otra vez (Te quedan {st.session_state['historia_vidas']} vidas)")
+                            st.warning(f"Respuesta incorrecta (Te quedan {st.session_state['historia_vidas']} vidas)")
                             r_max_val = 1025 if is_sup else 386
                             st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
                             st.rerun()
