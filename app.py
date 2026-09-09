@@ -1,3 +1,4 @@
+import uuid
 import random
 import requests
 import streamlit as st
@@ -78,9 +79,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- PERSISTENCIA (JSON LOCAL) ---
-ARCHIVO_GUARDADO = "pokedex_save.json"
+# --- GESTIÓN DE USUARIO ÚNICO ---
+if "user_id" not in st.query_params:
+    st.query_params["user_id"] = str(uuid.uuid4())[:8]
 
+USER_ID = st.query_params["user_id"]
+ARCHIVO_GUARDADO = f"pokedex_save_{USER_ID}.json"
+
+# --- PERSISTENCIA (JSON LOCAL) ---
 def cargar_progreso():
     if os.path.exists(ARCHIVO_GUARDADO):
         try:
