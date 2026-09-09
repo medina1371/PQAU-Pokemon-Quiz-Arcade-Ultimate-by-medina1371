@@ -118,7 +118,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
-componentes.html("""
+components.html("""
 <script>
     const STORAGE_KEY = "pokemon_arcade_device_id";
     let deviceId = localStorage.getItem(STORAGE_KEY);
