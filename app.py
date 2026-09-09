@@ -491,7 +491,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- PESTAÑAS PRINCIPALES (CON NUEVOS MÓDULOS) ---
+# --- PESTAÑAS PRINCIPALES ---
 tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
@@ -604,7 +604,6 @@ with tab_jugar:
                         if poke["shiny"]:
                             st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
                         
-                        # Registro para Medallas de Tipos
                         for t_elem in poke["tipos"]:
                             if t_elem not in st.session_state["medallas_tipos"]:
                                 st.session_state["medallas_tipos"][t_elem] = 0
@@ -755,7 +754,7 @@ with tab_misiones:
         else: st.info("⏳ En curso")
         st.divider()
 
-# --- 4. RULETA DIARIA (NUEVO) ---
+# --- 4. RULETA DIARIA (CON ANIMACIÓN INTEGRADA) ---
 with tab_ruleta:
     st.title("🎡 Ruleta Diaria de Premios")
     st.write("Gira la ruleta una vez al día para conseguir premios exclusivos.")
@@ -765,13 +764,27 @@ with tab_ruleta:
     if st.session_state.get("ultima_ruleta") == hoy_str:
         st.info("⏰ Ya has girado la ruleta hoy. ¡Vuelve mañana para tu próxima tirada!")
     else:
+        # Componente visual interactivo con animación de ruleta integrada en HTML/JS
+        ruleta_html = """
+        <div style="text-align: center;">
+            <div id="wheel-container" style="position: relative; width: 220px; height: 220px; margin: 0 auto 20px auto;">
+                <div id="wheel" style="width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(#ffcc00 0deg 72deg, #ff5252 72deg 144deg, #448aff 144deg 216deg, #00e676 216deg 288deg, #e040fb 288deg 360deg); border: 5px solid #fff; box-shadow: 0 0 20px rgba(255,204,0,0.5); transition: transform 4s cubic-bezier(0.15, 0.9, 0.2, 1); display: flex; align-items: center; justify-content: center;">
+                    <div style="background: #111122; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; color: #ffcc00; font-weight: bold; font-size: 12px;">GIF</div>
+                </div>
+                <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid #ffeb3b; z-index: 10;"></div>
+            </div>
+        </div>
+        """
+        components.html(ruleta_html, height=250)
+
         st.markdown("""
-        <div style="background: #181832; border: 2px dashed #ffcc00; padding: 25px; border-radius: 16px; text-align: center;">
+        <div style="background: #181832; border: 2px dashed #ffcc00; padding: 20px; border-radius: 16px; text-align: center;">
             <h3 style="color: #ffcc00; margin-top:0;">🎰 ¡Tirada Diaria Disponible!</h3>
             <p style="color: #bbb; font-size: 14px;">Premios en juego: 50 a 500 Poké-Coins, Huevos Shiny directos y Fragmentos TCG.</p>
         </div>
         """, unsafe_allow_html=True)
         st.write("")
+        
         if st.button("✨ ¡Girar la Ruleta Ahora!", use_container_width=True, type="primary"):
             st.session_state["ultima_ruleta"] = hoy_str
             premios_posibles = [
@@ -795,11 +808,14 @@ with tab_ruleta:
                     st.session_state["cartas_coleccion"].append({"nombre": limpiar_nombre_pokemon(res_s["name"]), "rareza": "Holográfica", "imagen": res_p["sprites"]["front_default"]})
             
             guardar_progreso()
+            with st.spinner("🎡 Girando la ruleta..."):
+                import time
+                time.sleep(2)
             st.balloons()
             st.success(f"🎉 ¡Has ganado: {premio_ganado['texto']}!")
             st.rerun()
 
-# --- 5. COMBATES DE ENTRENADORES (NUEVO) ---
+# --- 5. COMBATES DE ENTRENADORES ---
 with tab_combates:
     st.title("⚔️ Combates de Gimnasio por Turnos")
     st.write("Enfréntate a Líderes de Gimnasio utilizando tus conocimientos y estrategia.")
@@ -817,7 +833,6 @@ with tab_combates:
         with c2: st.markdown(f"### {lid['nombre']}\nEspecialidad: **{lid['tipo']}** | Recompensa: 🪙 {lid['recompensa']}")
         with c3:
             if st.button(f"Luchar vs {lid['tipo']}", key=f"batalla_lid_{idx}", use_container_width=True):
-                # Simulación táctica por turnos basada en estadísticas de la Pokédex del usuario
                 puntos_usuario = len(st.session_state["pokedex_capturados"]) * 2 + random.randint(20, 80)
                 puntos_lider = 50 + (idx * 40)
                 if puntos_usuario >= puntos_lider:
@@ -828,7 +843,7 @@ with tab_combates:
                     st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex para mejorar tu equipo!")
         st.divider()
 
-# --- 6. ZONA SAFARI (NUEVO) ---
+# --- 6. ZONA SAFARI ---
 with tab_safari:
     st.title("🗺️ Zona Safari: Captura Temporal")
     st.write("Atrapa tantos Pokémon salvajes como puedas en una sesión exprés de velocidad.")
