@@ -637,23 +637,18 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (TEMPORIZADOR INFALIBLE CON DISPARADOR DE BOTÓN NATIVO) ---
+# --- 2. MODO HISTORIA (TEMPORIZADOR LIMPIO SIN BOTONES VISIBLES) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
-    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real y penalización automática**.")
+    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real**.")
     st.divider()
     
-    # Botón oculto real en Streamlit para forzar la ejecución directa al agotarse el tiempo
-    if st.button("TrigTimeOut", key="hidden_timeout_btn"):
-        st.session_state["historia_vidas"] -= 1
-        if st.session_state["historia_vidas"] <= 0:
-            st.session_state["en_historia"] = False
-            st.error("💥 Se te agotó el tiempo, prueba otra vez")
-        else:
-            st.warning("Se te agotó el tiempo, prueba otra vez")
-            r_max_val = 1025 if st.session_state["modo_supervivencia"] else 386
-            st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
-        st.rerun()
+    # Manejador invisible de fin de tiempo mediante query param para recargar limpiamente sin botones de relleno
+    if st.query_params.get("timeout_trigger") == "true":
+        st.query_params.clear()
+        st.session_state["en_historia"] = False
+        st.error("Se te agotó el tiempo, prueba otra vez")
+        st.stop()
 
     if not st.session_state["en_historia"]:
         col_hs1, col_hs2 = st.columns(2)
@@ -697,20 +692,10 @@ with tab_historia:
             st.markdown(f"### ⚔️ {gym_activo['nombre']} (Líder: {gym_activo['lider']})")
         
         st.metric("❤️ Vidas Restantes", st.session_state["historia_vidas"])
-        
-        # Ocultar el botón Streamlit auxiliar mediante CSS para que JavaScript lo pulse solo por ID
-        st.markdown("""
-        <style>
-            div[data-testid="stHorizontalBlock"] > div:has(#hidden_timeout_btn),
-            div:has(> button[key="hidden_timeout_btn"]) {
-                display: none !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
 
-        # Componente JavaScript/HTML de Temporizador Sincronizado que pulsa el botón real de Streamlit
+        # Componente JS limpio que recarga la página por query parameter al agotarse el tiempo exacto
         components.html("""
-        <div id="timer-box" style="background: #15152b; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px;">
+        <div id="timer-box" style="background: #15152b; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #ff4444;">
                 <span>⏱️ TIEMPO LÍMITE</span>
                 <span id="counter">7.0s</span>
@@ -732,15 +717,10 @@ with tab_historia:
                     clearInterval(interval);
                     counter.innerHTML = "0.0s";
                     bar.style.width = "0%";
-                    
-                    // Buscar y pulsar el botón invisible de Streamlit para recargar la app con el estado actualizado
-                    const buttons = parent.document.querySelectorAll('button');
-                    for (let btn of buttons) {
-                        if (btn.innerText.includes('TrigTimeOut')) {
-                            btn.click();
-                            break;
-                        }
-                    }
+                    // Redirige de inmediato añadiendo el parámetro de tiempo agotado para salir limpiamente al menú
+                    const currentUrl = new URL(parent.window.location.href);
+                    currentUrl.searchParams.set('timeout_trigger', 'true');
+                    parent.window.location.href = currentUrl.toString();
                 } else {
                     counter.innerHTML = currentTime.toFixed(1) + "s";
                     let pct = (currentTime / totalTime) * 100;
@@ -789,7 +769,7 @@ with tab_historia:
                         st.session_state["historia_vidas"] -= 1
                         if st.session_state["historia_vidas"] <= 0:
                             st.session_state["en_historia"] = False
-                            st.error("💥 Se te agotó el tiempo, prueba otra vez")
+                            st.error("Se te agotó el tiempo, prueba otra vez")
                             st.rerun()
                         else:
                             st.warning(f"Se te agotó el tiempo, prueba otra vez (Te quedan {st.session_state['historia_vidas']} vidas)")
