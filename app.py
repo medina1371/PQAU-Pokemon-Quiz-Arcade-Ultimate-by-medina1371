@@ -501,7 +501,7 @@ tab_jugar, tab_historia, tab_misiones, tab_guarderia, tab_tcg, tab_entrenadores,
 with tab_jugar:
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
-        st.error("¡Te equivocaste de respuesta!")
+        st.error("¡Te equivocaste de respuesta o el tiempo expiró!")
         if st.session_state["ultimo_pokemon_fallado"]:
             pf = st.session_state["ultimo_pokemon_fallado"]
             c1, c2, c3 = st.columns([1, 2, 1])
@@ -636,14 +636,13 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (EXCLUSIVO Y EXTREMO) ---
+# --- 2. MODO HISTORIA (TEMPORIZADOR FLUIDO OPTIMIZADO) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
-    st.write("Dificultad máxima: **7 segundos por pregunta**, eventos de memoria/caos en gimnasios avanzados y modo supervivencia infinito.")
+    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real**, eventos de memoria y supervivencia infinita.")
     st.divider()
     
     if not st.session_state["en_historia"]:
-        # Selector entre historia tradicional y modo supervivencia
         col_hs1, col_hs2 = st.columns(2)
         with col_hs1:
             if st.button("⚔️ Iniciar Camino de Gimnasios", use_container_width=True):
@@ -676,7 +675,20 @@ with tab_historia:
             st.divider()
     
     else:
-        # PANTALLA DE COMBATE EN MODO HISTORIA EXTREMO
+        # Callback invisibles para controlar cuando expira el tiempo desde el componente HTML
+        if st.query_params.get("tiempo_agotado") == "true":
+            st.query_params.pop("tiempo_agotado", None)
+            st.session_state["historia_vidas"] -= 1
+            if st.session_state["historia_vidas"] <= 0:
+                st.session_state["en_historia"] = False
+                st.error("💥 ¡Se acabó el tiempo y te quedaste sin vidas! Fin del desafío.")
+                st.rerun()
+            else:
+                st.warning("⏱️ ¡Tiempo agotado! Has perdido 1 vida.")
+                r_max_val = 1025 if st.session_state["modo_supervivencia"] else 386
+                st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
+                st.rerun()
+
         is_sup = st.session_state["modo_supervivencia"]
         gym_activo = None if is_sup else GIMNASIOS_HISTORIA[min(len(GIMNASIOS_HISTORIA)-1, st.session_state["historia_progreso"]-1)]
         
@@ -687,31 +699,46 @@ with tab_historia:
         
         st.metric("❤️ Vidas Restantes", st.session_state["historia_vidas"])
         
-        # Componente de Temporizador Estricto (7 segundos)
+        # Componente de Temporizador Fluido con Barra de Progreso CSS Real
         components.html("""
-        <div style="background: #111; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #ff4444;">
-            <p id="timer" style="color: #ff4444; font-weight: bold; font-size: 16px; margin:0;">⏱️ Tiempo límite: 7s</p>
+        <div style="background: #15152b; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #ff4444;">
+                <span>⏱️ TIEMPO LÍMITE</span>
+                <span id="counter">7.0s</span>
+            </div>
+            <div style="width: 100%; background: #2d2d54; height: 10px; border-radius: 5px; overflow: hidden;">
+                <div id="bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #ffcc00); transition: width 0.1s linear;"></div>
+            </div>
         </div>
         <script>
-            let timeLeft = 7;
-            const elem = document.getElementById('timer');
-            const timerId = setInterval(() => {
-                timeLeft--;
-                if(timeLeft >= 0) {
-                    elem.innerHTML = "⏱️ Tiempo límite: " + timeLeft + "s";
+            let totalTime = 7.0;
+            let currentTime = totalTime;
+            const bar = document.getElementById('bar');
+            const counter = document.getElementById('counter');
+            
+            const interval = setInterval(() => {
+                currentTime -= 0.1;
+                if (currentTime <= 0) {
+                    clearInterval(interval);
+                    counter.innerHTML = "0.0s";
+                    bar.style.width = "0%";
+                    // Recargar con parámetro de tiempo agotado
+                    const currentUrl = new URL(window.parent.location.href);
+                    currentUrl.searchParams.set('tiempo_agotado', 'true');
+                    window.parent.location.href = currentUrl.toString();
+                } else {
+                    counter.innerHTML = currentTime.toFixed(1) + "s";
+                    let pct = (currentTime / totalTime) * 100;
+                    bar.style.width = pct + "%";
                 }
-                if(timeLeft <= 0) {
-                    clearInterval(timerId);
-                }
-            }, 1000);
+            }, 100);
         </script>
-        """, height=50)
+        """, height=90)
 
         poke_h = st.session_state.get("pokemon_historia")
         if poke_h:
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                # Evento Caos o Memoria en gimnasios avanzados
                 tipo_ev = "normal" if is_sup else gym_activo["tipo_evento"]
                 if tipo_ev == "caos":
                     st.info("⚡ [MODO CAOS] Imagen oculta. Responde por sus tipos y características.")
