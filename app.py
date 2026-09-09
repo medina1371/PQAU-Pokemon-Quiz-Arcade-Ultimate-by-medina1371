@@ -7,7 +7,7 @@ import io
 import json
 import os
 import datetime
-import streamlit.components.v1 as components
+import streamlit.components.v1 as componentes
 
 st.set_page_config(
     page_title="Pokémon Quiz Arcade Ultimate ⚡",
@@ -119,7 +119,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
-# Usamos JavaScript para leer/escribir un ID fijo en el navegador del usuario
 componentes.html("""
 <script>
     const STORAGE_KEY = "pokemon_arcade_device_id";
@@ -128,7 +127,6 @@ componentes.html("""
         deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
         localStorage.setItem(STORAGE_KEY, deviceId);
     }
-    // Comunicamos el ID al contenedor de Streamlit si es necesario mediante parámetros de consulta ocultos
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('device_id') !== deviceId) {
         urlParams.set('device_id', deviceId);
@@ -239,12 +237,10 @@ if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recie
 if "mostrar_consola_trucos" not in st.session_state: st.session_state["mostrar_consola_trucos"] = False
 if "premio_ruleta_reclamado_reciente" not in st.session_state: st.session_state["premio_ruleta_reclamado_reciente"] = None
 
-# Estados específicos Modo Historia
 if "en_historia" not in st.session_state: st.session_state["en_historia"] = False
 if "historia_vidas" not in st.session_state: st.session_state["historia_vidas"] = 3
 if "modo_supervivencia" not in st.session_state: st.session_state["modo_supervivencia"] = False
 
-# --- GESTIÓN DE MISIONES DIARIAS ---
 hoy_str = str(datetime.date.today())
 if st.session_state["ultima_fecha_misiones"] != hoy_str:
     st.session_state["ultima_fecha_misiones"] = hoy_str
@@ -254,7 +250,6 @@ if st.session_state["ultima_fecha_misiones"] != hoy_str:
     }
     guardar_progreso()
 
-# --- DETECTOR DE TECLA "Q" (CONSOLA) ---
 components.html("""
 <script>
     document.addEventListener('keydown', function(e) {
@@ -279,7 +274,6 @@ if st.button("TrigQ", key="hidden_trigger_btn"):
     st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
     st.rerun()
 
-# --- ENTRENADORES ---
 ENTRENADORES = {
     "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Ganancia estándar", "bonus_monedas": 0},
     "Brock": {"nombre": "Brock", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/brock.png", "costo": 80, "descripcion": "Líder de Ciudad Plateada.", "trait": "+1 Poké-Coin extra por acierto", "bonus_monedas": 1},
@@ -327,7 +321,6 @@ def obtener_titulo_entrenador():
     elif pokedex_len >= 50 or racha_max >= 10: return "📘 Coleccionista Experto"
     else: return "🌱 Novato de Pueblo Paleta"
 
-# --- LOGROS ---
 LOGROS_DEF = {
     "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon en la Pokédex.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1, "oculto": False},
     "suerte_shiny": {"titulo": "✨ ¡Suerte Variocolor!", "desc": "Encuentra y atrapa tu primer Pokémon Shiny.", "condicion": lambda: len(st.session_state["shinydex_capturados"]) >= 1, "oculto": False},
@@ -484,7 +477,6 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
             continue
     return None
 
-# --- CONSOLA SECRETA ---
 if st.session_state["mostrar_consola_trucos"]:
     st.markdown("""
     <div style="background: rgba(0,0,0,0.9); border: 2px solid #ffcc00; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
@@ -505,7 +497,6 @@ if st.session_state["mostrar_consola_trucos"]:
                 st.rerun()
             else: st.error("✘ Código no válido.")
 
-# --- TARJETA DE PERFIL (SUPERIOR) ---
 ent_actual = ENTRENADORES.get(st.session_state['entrenador_actual'], ENTRENADORES["Rojo"])
 comp_id = st.session_state["companero_id"]
 comp_shiny = st.session_state["companero_shiny"]
@@ -536,12 +527,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- PESTAÑAS PRINCIPALES ---
 tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_combates, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
     "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "⚔️ Combates", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
 ])
 
-# --- 1. JUGAR ---
 with tab_jugar:
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
@@ -687,7 +676,6 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
     st.write("Dificultad sin límite de tiempo: avanza superando los retos con tus vidas.")
@@ -786,7 +774,6 @@ with tab_historia:
             st.session_state["en_historia"] = False
             st.rerun()
 
-# --- 3. MISIONES DIARIAS ---
 with tab_misiones:
     st.title("🎯 Misiones Diarias")
     st.write("Completa objetivos para conseguir Poké-Coins extra.")
@@ -799,7 +786,6 @@ with tab_misiones:
         else: st.info("⏳ En curso")
         st.divider()
 
-# --- 4. RULETA DIARIA ---
 with tab_ruleta:
     st.title("🎡 Ruleta Diaria de Premios")
     st.write("Gira la ruleta una vez al día para conseguir premios exclusivos.")
@@ -870,7 +856,6 @@ with tab_ruleta:
             st.balloons()
             st.rerun()
 
-# --- 5. MOCHILA ---
 with tab_mochila:
     st.title("🎒 Mochila / Bolsillo de Objetos")
     st.write("Gestiona tus objetos especiales de supervivencia y aventura.")
@@ -900,7 +885,6 @@ with tab_mochila:
         else:
             st.info("No tienes revivires. Consíguelos girando la Ruleta Diaria.")
 
-# --- 6. COMBATES ---
 with tab_combates:
     st.title("⚔️ Combates de Gimnasio por Turnos")
     st.write("Enfréntate a Líderes de Gimnasio utilizando tus conocimientos y estrategia.")
@@ -928,7 +912,6 @@ with tab_combates:
                     st.error(f"💥 ¡Derrota! {lid['nombre']} fue más fuerte. ¡Registra más Pokémon en tu Pokédex!")
         st.divider()
 
-# --- 7. ZONA SAFARI ---
 with tab_safari:
     st.title("🗺️ Zona Safari: Captura Temporal")
     st.write("Atrapa tantos Pokémon salvajes como puedas en una sesión exprés de velocidad.")
@@ -954,7 +937,6 @@ with tab_safari:
         else:
             st.error("❌ No tienes suficientes Poké-Coins (necesitas 30).")
 
-# --- 8. GUARDERÍA ---
 with tab_guarderia:
     st.title("🥚 Guardería Pokémon")
     st.write("Incuba tus huevos ganando aciertos en las partidas arcade.")
@@ -974,7 +956,6 @@ with tab_guarderia:
                     st.rerun()
             st.divider()
 
-# --- 9. TCG ---
 with tab_tcg:
     st.title("🎴 Álbum de Cartas TCG e Intercambio")
     st.write("Colecciona cartas o intercambia 2 repetidas por un sobre nuevo.")
@@ -1024,7 +1005,6 @@ with tab_tcg:
                 </div>
                 """, unsafe_allow_html=True)
 
-# --- 10. ENTRENADORES ---
 with tab_entrenadores:
     st.title("👥 Entrenadores")
     st.write("Desbloquea avatares para conseguir bonificaciones pasivas de Poké-Coins.")
@@ -1054,7 +1034,6 @@ with tab_entrenadores:
                     else: st.error("❌ Monedas insuficientes")
         st.divider()
 
-# --- 11. MERCADO ---
 with tab_mercado:
     st.title("🛒 Bazar Arcade")
     st.write(f"🪙 Monedas Disponibles: **{st.session_state['monedas']}**")
@@ -1095,7 +1074,6 @@ with tab_mercado:
                     st.rerun()
             else: st.error("❌ Monedas insuficientes")
 
-# --- 12. POKÉDEX ---
 with tab_pokedex:
     st.title("📖 Pokédex Web")
     st.write(f"Pokémon registrados: **{len(st.session_state['pokedex_capturados'])} / 1025**")
@@ -1106,7 +1084,6 @@ with tab_pokedex:
         with c2: st.write(f"### #{pid:03d} - {data['nombre']}")
         st.divider()
 
-# --- 13. SHINYMEX ---
 with tab_shinydex:
     st.title("✨ ShinyDex")
     st.write(f"Pokémon variocolor: **{len(st.session_state['shinydex_capturados'])}**")
@@ -1120,7 +1097,6 @@ with tab_shinydex:
             with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
             st.divider()
 
-# --- 14. STATS ---
 with tab_stats:
     st.title("📊 Estadísticas, Medallas Elementales y Logros")
     comprobar_logros()
@@ -1151,7 +1127,6 @@ with tab_stats:
             else:
                 st.info(f"🔒 **{datos['titulo']}** (Pendiente) — {datos['desc']}")
 
-# --- 15. AJUSTES ---
 with tab_ajustes:
     st.title("⚙️ Ajustes y Configuración")
     st.write("Gestiona tu título de perfil, tu compañero y el almacenamiento.")
@@ -1213,5 +1188,7 @@ with tab_ajustes:
         st.session_state["historia_progreso"] = 1
         st.session_state["medallas_tipos"] = {}
         st.session_state["inventario"] = {"revivir": 0}
+        st.success("✅ Progreso restablecido.")
+        st.rerun()
         st.success("✅ Progreso restablecido.")
         st.rerun()
