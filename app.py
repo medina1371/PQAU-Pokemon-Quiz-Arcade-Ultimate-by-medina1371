@@ -22,9 +22,13 @@ st.markdown("""
         background: radial-gradient(circle at center, #131324 0%, #0a0a12 100%);
         color: #e2e8f0;
     }
-    @keyframes fadeIn {
-        from { opacity: 0.85; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes pulseWarning {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.02); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    .alerta-tiempo {
+        animation: pulseWarning 0.5s infinite ease-in-out;
     }
     div.stButton > button {
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -207,7 +211,7 @@ if st.session_state["ultima_fecha_misiones"] != hoy_str:
     }
     guardar_progreso()
 
-# --- DETECTOR DE TECLA "Q" ---
+# --- DETECTOR DE TECLA "Q" (CONSOLA) ---
 components.html("""
 <script>
     document.addEventListener('keydown', function(e) {
@@ -280,13 +284,12 @@ def obtener_titulo_entrenador():
     elif pokedex_len >= 50 or racha_max >= 10: return "📘 Coleccionista Experto"
     else: return "🌱 Novato de Pueblo Paleta"
 
-# --- LOGROS Y LOGROS OCULTOS / MISTERIOSOS ---
+# --- LOGROS ---
 LOGROS_DEF = {
     "primer_paso": {"titulo": "🌱 Primeros Pasos", "desc": "Registra tu primer Pokémon en la Pokédex.", "condicion": lambda: len(st.session_state["pokedex_capturados"]) >= 1, "oculto": False},
     "suerte_shiny": {"titulo": "✨ ¡Suerte Variocolor!", "desc": "Encuentra y atrapa tu primer Pokémon Shiny.", "condicion": lambda: len(st.session_state["shinydex_capturados"]) >= 1, "oculto": False},
     "huevo_eclosionado": {"titulo": "🥚 Padre Pokémon", "desc": "Eclosiona tu primer Huevo Pokémon en la guardería.", "condicion": lambda: any(h.get("eclosionado") for h in st.session_state["huevos"]), "oculto": False},
     "coleccionista_tcg": {"titulo": "🎴 Coleccionista de TCG", "desc": "Obtén al menos 3 cartas en tu álbum TCG.", "condicion": lambda: len(st.session_state["cartas_coleccion"]) >= 3, "oculto": False},
-    # Logros ocultos/misteriosos
     "noctambulo": {"titulo": "🌙 Entrenador Noctámbulo", "desc": "??? (Juega en la madrugada)", "condicion": lambda: datetime.datetime.now().hour in [2, 3, 4], "oculto": True},
     "racha_agua": {"titulo": "💧 Corriente Marina", "desc": "??? (Alcanza una racha de 5 aciertos seguidos)", "condicion": lambda: st.session_state["racha"] >= 5, "oculto": True},
     "catastrofe": {"titulo": "💥 Día de Desastres", "desc": "??? (Acumula 5 fallos totales)", "condicion": lambda: st.session_state["fallos_totales"] >= 5, "oculto": True}
@@ -314,12 +317,10 @@ def avanzar_huevos():
                 h["pokemon_id"] = poke_id
                 es_shiny = random.random() < h["prob_shiny"]
                 h["es_shiny"] = es_shiny
-                
                 res_spec = obtener_datos_especie(poke_id)
                 nombre_poke = limpiar_nombre_pokemon(res_spec["name"]) if res_spec else f"Pokémon #{poke_id}"
                 gen_poke = int(res_spec["generation"]["url"].split("/")[-2]) if res_spec else 1
                 h["nombre_poke"] = nombre_poke
-                
                 st.session_state["pokedex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": gen_poke}
                 if es_shiny:
                     st.session_state["shinydex_capturados"][poke_id] = {"nombre": nombre_poke, "gen": gen_poke}
@@ -636,10 +637,10 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (TEMPORIZADOR FLUIDO OPTIMIZADO) ---
+# --- 2. MODO HISTORIA (TEMPORIZADOR INFALIBLE CON COMPONENTE NATIVO) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
-    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real**, eventos de memoria y supervivencia infinita.")
+    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real y penalización automática**.")
     st.divider()
     
     if not st.session_state["en_historia"]:
@@ -675,7 +676,7 @@ with tab_historia:
             st.divider()
     
     else:
-        # Callback invisibles para controlar cuando expira el tiempo desde el componente HTML
+        # Mecanismo de eventos invisible para atrapar el fin de tiempo exacto
         if st.query_params.get("tiempo_agotado") == "true":
             st.query_params.pop("tiempo_agotado", None)
             st.session_state["historia_vidas"] -= 1
@@ -699,14 +700,14 @@ with tab_historia:
         
         st.metric("❤️ Vidas Restantes", st.session_state["historia_vidas"])
         
-        # Componente de Temporizador Fluido con Barra de Progreso CSS Real
+        # Componente JavaScript/HTML de Temporizador Sincronizado Infalible
         components.html("""
-        <div style="background: #15152b; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px;">
+        <div id="timer-box" style="background: #15152b; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #ff4444;">
                 <span>⏱️ TIEMPO LÍMITE</span>
                 <span id="counter">7.0s</span>
             </div>
-            <div style="width: 100%; background: #2d2d54; height: 10px; border-radius: 5px; overflow: hidden;">
+            <div style="width: 100%; background: #2d2d54; height: 12px; border-radius: 6px; overflow: hidden;">
                 <div id="bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #ffcc00); transition: width 0.1s linear;"></div>
             </div>
         </div>
@@ -715,6 +716,7 @@ with tab_historia:
             let currentTime = totalTime;
             const bar = document.getElementById('bar');
             const counter = document.getElementById('counter');
+            const box = document.getElementById('timer-box');
             
             const interval = setInterval(() => {
                 currentTime -= 0.1;
@@ -722,18 +724,22 @@ with tab_historia:
                     clearInterval(interval);
                     counter.innerHTML = "0.0s";
                     bar.style.width = "0%";
-                    // Recargar con parámetro de tiempo agotado
-                    const currentUrl = new URL(window.parent.location.href);
-                    currentUrl.searchParams.set('tiempo_agotado', 'true');
-                    window.parent.location.href = currentUrl.toString();
+                    
+                    // Forzar redirección limpia con parámetro exacto para recargar Streamlit
+                    const url = new URL(window.parent.location.href);
+                    url.searchParams.set('tiempo_agotado', 'true');
+                    window.parent.location.href = url.toString();
                 } else {
                     counter.innerHTML = currentTime.toFixed(1) + "s";
                     let pct = (currentTime / totalTime) * 100;
                     bar.style.width = pct + "%";
+                    if(currentTime <= 2.0) {
+                        box.style.border = "2px solid #ff4444";
+                    }
                 }
             }, 100);
         </script>
-        """, height=90)
+        """, height=95)
 
         poke_h = st.session_state.get("pokemon_historia")
         if poke_h:
@@ -963,7 +969,7 @@ with tab_shinydex:
             with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
             st.divider()
 
-# --- 10. STATS & LOGROS OCULTOS ---
+# --- 10. STATS ---
 with tab_stats:
     st.title("📊 Estadísticas, Récords y Logros")
     comprobar_logros()
