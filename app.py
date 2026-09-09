@@ -1189,5 +1189,3 @@ with tab_ajustes:
         st.session_state["inventario"] = {"revivir": 0}
         st.success("✅ Progreso restablecido.")
         st.rerun()
-        st.success("✅ Progreso restablecido.")
-        st.rerun()
