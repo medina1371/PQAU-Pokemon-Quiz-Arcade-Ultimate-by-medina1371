@@ -22,14 +22,6 @@ st.markdown("""
         background: radial-gradient(circle at center, #131324 0%, #0a0a12 100%);
         color: #e2e8f0;
     }
-    @keyframes pulseWarning {
-        0% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.6; transform: scale(1.02); }
-        100% { opacity: 1; transform: scale(1); }
-    }
-    .alerta-tiempo {
-        animation: pulseWarning 0.5s infinite ease-in-out;
-    }
     div.stButton > button {
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
         border-radius: 14px !important;
@@ -502,7 +494,7 @@ tab_jugar, tab_historia, tab_misiones, tab_guarderia, tab_tcg, tab_entrenadores,
 with tab_jugar:
     if st.session_state["derrota"]:
         st.title("💥 ¡Has Caído!")
-        st.error("¡Te equivocaste de respuesta o el tiempo expiró!")
+        st.error("¡Te equivocaste de respuesta!")
         if st.session_state["ultimo_pokemon_fallado"]:
             pf = st.session_state["ultimo_pokemon_fallado"]
             c1, c2, c3 = st.columns([1, 2, 1])
@@ -637,19 +629,11 @@ with tab_jugar:
             st.session_state["derrota"] = False
             st.rerun()
 
-# --- 2. MODO HISTORIA (CONTROL DE TIEMPO Y SALIDA FORZADA AL MENÚ) ---
+# --- 2. MODO HISTORIA (SIN CONTADOR, FLUJO LIMPIO DE VIDAS) ---
 with tab_historia:
     st.title("🗺️ Modo Historia Extremo: Liga & Supervivencia")
-    st.write("Dificultad máxima: **7 segundos por pregunta con barra de tiempo real**.")
+    st.write("Dificultad sin límite de tiempo: avanza superando los retos con tus 3 vidas.")
     st.divider()
-    
-    # Manejador absoluto de salida por tiempo agotado (Fuerza limpia el estado y regresa al menú principal)
-    if st.query_params.get("timeout_trigger") == "true":
-        st.query_params.clear()
-        st.session_state["en_historia"] = False
-        st.session_state["historia_vidas"] = 3
-        st.error("Se te agotó el tiempo, prueba otra vez")
-        st.stop()
 
     if not st.session_state["en_historia"]:
         col_hs1, col_hs2 = st.columns(2)
@@ -694,46 +678,6 @@ with tab_historia:
         
         st.metric("❤️ Vidas Restantes", st.session_state["historia_vidas"])
 
-        # Componente JS limpio que recarga la página por query parameter al agotarse el tiempo exacto
-        components.html("""
-        <div id="timer-box" style="background: #15152b; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 15px; font-family: sans-serif;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #ff4444;">
-                <span>⏱️ TIEMPO LÍMITE</span>
-                <span id="counter">7.0s</span>
-            </div>
-            <div style="width: 100%; background: #2d2d54; height: 12px; border-radius: 6px; overflow: hidden;">
-                <div id="bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #ffcc00); transition: width 0.1s linear;"></div>
-            </div>
-        </div>
-        <script>
-            let totalTime = 7.0;
-            let currentTime = totalTime;
-            const bar = document.getElementById('bar');
-            const counter = document.getElementById('counter');
-            const box = document.getElementById('timer-box');
-            
-            const interval = setInterval(() => {
-                currentTime -= 0.1;
-                if (currentTime <= 0) {
-                    clearInterval(interval);
-                    counter.innerHTML = "0.0s";
-                    bar.style.width = "0%";
-                    // Redirige de inmediato añadiendo el parámetro de tiempo agotado para salir limpiamente al menú
-                    const currentUrl = new URL(parent.window.location.href);
-                    currentUrl.searchParams.set('timeout_trigger', 'true');
-                    parent.window.location.href = currentUrl.toString();
-                } else {
-                    counter.innerHTML = currentTime.toFixed(1) + "s";
-                    let pct = (currentTime / totalTime) * 100;
-                    bar.style.width = pct + "%";
-                    if(currentTime <= 2.0) {
-                        box.style.border = "2px solid #ff4444";
-                    }
-                }
-            }, 100);
-        </script>
-        """, height=95)
-
         poke_h = st.session_state.get("pokemon_historia")
         if poke_h:
             c1, c2, c3 = st.columns([1, 2, 1])
@@ -748,7 +692,7 @@ with tab_historia:
                 else:
                     if poke_h["imagen"]: st.image(poke_h["imagen"], width=240)
             
-            st.write("Elige la respuesta correcta bajo presión:")
+            st.write("Elige la respuesta correcta:")
             for idx, opc_item in enumerate(poke_h["opciones"][:4]):
                 opc_nombre = opc_item["nombre"]
                 if st.button(opc_nombre, key=f"hist_opc_{idx}", use_container_width=True):
@@ -771,8 +715,8 @@ with tab_historia:
                         if st.session_state["historia_vidas"] <= 0:
                             st.session_state["en_historia"] = False
                             st.session_state["historia_vidas"] = 3
-                            st.error("Se te agotó el tiempo, prueba otra vez")
-                            st.stop()
+                            st.error("Te has quedado sin vidas. ¡Vuelves al menú principal!")
+                            st.rerun()
                         else:
                             st.warning(f"Respuesta incorrecta (Te quedan {st.session_state['historia_vidas']} vidas)")
                             r_max_val = 1025 if is_sup else 386
@@ -1042,7 +986,7 @@ with tab_ajustes:
         st.session_state["entrenadores_desbloqueados"] = ["Rojo"]
         st.session_state["huevos"] = []
         st.session_state["cartas_coleccion"] = []
-        st.session_state["companero_id"] = 25
+        st.session_state["companero_id"] = 0
         st.session_state["companero_shiny"] = False
         st.session_state["titulo_elegido"] = ""
         st.session_state["historia_progreso"] = 1
