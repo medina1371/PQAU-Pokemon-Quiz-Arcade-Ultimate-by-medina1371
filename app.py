@@ -7,6 +7,7 @@ import io
 import json
 import os
 import datetime
+import time
 import streamlit.components.v1 as components
 
 st.set_page_config(
@@ -81,15 +82,6 @@ st.markdown("""
         border: 2px solid #e94560;
         box-shadow: 0 6px 18px rgba(233, 69, 96, 0.25);
         margin-bottom: 15px;
-    }
-    .badge-rank {
-        background: rgba(255, 204, 0, 0.15);
-        color: #ffcc00;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 13px;
-        border: 1px solid #ffcc00;
     }
     .toast-notification {
         position: fixed;
@@ -303,12 +295,15 @@ def agregar_notificacion(texto, tipo="success"):
 
 def obtener_rango_competitivo():
     r = st.session_state["racha_maxima"]
-    if r >= 30: return "🏆 Rango Maestro"
-    elif r >= 20: return "💎 Rango Diamante"
-    elif r >= 15: return "🥇 Rango Platino"
-    elif r >= 10: return "🥈 Rango Oro"
-    elif r >= 5: return "🥉 Rango Plata"
-    else: return "🔶 Rango Bronce"
+    if r >= 45: return '<span style="color: #00e676; font-weight: bold;">🟢 Rango Esmeralda</span>'
+    elif r >= 38: return '<span style="color: #00bcd4; font-weight: bold;">🔷 Rango Zafiro</span>'
+    elif r >= 32: return '<span style="color: #ff5252; font-weight: bold;">🔴 Rango Rubí</span>'
+    elif r >= 26: return '<span style="color: #e040fb; font-weight: bold;">💠 Rango Platino</span>'
+    elif r >= 20: return '<span style="color: #ffeb3b; font-weight: bold;">🐚 Rango Perla</span>'
+    elif r >= 15: return '<span style="color: #00e5ff; font-weight: bold;">💎 Rango Diamante</span>'
+    elif r >= 10: return '<span style="color: #ffd700; font-weight: bold;">🥇 Rango Oro</span>'
+    elif r >= 5: return '<span style="color: #c0c0c0; font-weight: bold;">🥈 Rango Plata</span>'
+    else: return '<span style="color: #cd7f32; font-weight: bold;">🥉 Rango Bronce</span>'
 
 def obtener_titulo_entrenador():
     if st.session_state.get("titulo_elegido"):
@@ -511,7 +506,7 @@ st.markdown(f"""
             <td style="vertical-align:middle; border:none; padding-left:15px;">
                 <h2 style="margin:0; color:white; font-size: 22px;">{st.session_state['entrenador_actual']}</h2>
                 <p style="margin:2px 0 6px 0; font-size:14px; color:#ffeb3b; font-weight: bold;">{obtener_titulo_entrenador()}</p>
-                <span class="badge-rank">{obtener_rango_competitivo()}</span>
+                <span style="background: rgba(255, 204, 0, 0.15); padding: 4px 10px; border-radius: 20px; font-size: 13px; border: 1px solid #ffcc00;">{obtener_rango_competitivo()}</span>
             </td>
             <td style="text-align:center; vertical-align:middle; border:none; width:75px;">
                 <img src="{comp_url}" width="60" style="background: rgba(0,0,0,0.3); border-radius:50%; border: 2px solid #ffcc00;">
@@ -609,7 +604,7 @@ with tab_jugar:
         c1, c2, c3, c4 = st.columns(4)
         with c1: st.metric("⭐ Puntos", st.session_state["puntos"])
         with c2: st.metric("🔥 Racha", st.session_state["racha"])
-        with c3: st.metric("🏅 Rango", obtener_rango_competitivo().split()[-1])
+        with c3: st.metric("🏅 Rango", obtener_rango_competitivo().split(">")[1].split("<")[0])
         with c4: st.metric("🪙 Monedas", st.session_state["monedas"])
         st.divider()
         
@@ -824,6 +819,12 @@ with tab_ruleta:
         if st.button("✨ ¡Girar la Ruleta Ahora!", use_container_width=True, type="primary"):
             st.session_state["ultima_ruleta"] = hoy_str
             
+            # --- ANIMACIÓN Y EFECTOS VISUALES DE RULETA ---
+            with st.spinner("🎡 Girando la ruleta con fuerza... Tic, tic, tic..."):
+                time.sleep(1.2)
+            with st.spinner("✨ ¡Atención! La ruleta está frenando sobre un premio increíble..."):
+                time.sleep(1.0)
+            
             eleccion = random.choices(
                 ["100_coins", "250_coins", "500_coins", "revivir", "huevo_shiny"],
                 weights=[750, 150, 35, 50, 15],
@@ -848,10 +849,6 @@ with tab_ruleta:
             
             st.session_state["premio_ruleta_reclamado_reciente"] = texto_premio
             guardar_progreso()
-            
-            with st.spinner("🎡 Girando la ruleta..."):
-                import time
-                time.sleep(1.8)
             st.balloons()
             st.rerun()
 
@@ -1102,7 +1099,7 @@ with tab_stats:
     
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     with col_s1: st.metric("🔥 Récord Racha", st.session_state["racha_maxima"])
-    with col_s2: st.metric("🏅 Rango", obtener_rango_competitivo().split()[-1])
+    with col_s2: st.metric("🏅 Rango", obtener_rango_competitivo().split(">")[1].split("<")[0])
     with col_s3: st.metric("✅ Aciertos", st.session_state["aciertos_totales"])
     with col_s4: st.metric("❌ Fallos", st.session_state["fallos_totales"])
     
