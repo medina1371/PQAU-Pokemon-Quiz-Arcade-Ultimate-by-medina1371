@@ -18,12 +18,10 @@ st.set_page_config(
 )
 
 # --- CONFIGURACIÓN DE SUPABASE ---
-# Intentará leer las credenciales desde st.secrets (Streamlit Cloud o .streamlit/secrets.toml)
 try:
     SUPABASE_URL = st.secrets["supabase"]["url"]
     SUPABASE_KEY = st.secrets["supabase"]["key"]
 except Exception:
-    # Valores de respaldo por si lo ejecutas localmente sin secrets.toml configurado
     SUPABASE_URL = "https://xlytnqvdsznfapjjqarp.supabase.co"
     SUPABASE_KEY = "sb_publishable_GS6VprT94eYwkjuOo9G8jA_uHE9RKFF"
 
@@ -126,27 +124,53 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR ÚNICO PERSISTENTE POR DISPOSITIVO (LOCALSTORAGE) ---
-components.html("""
-<script>
-    const STORAGE_KEY = "pokemon_arcade_device_id";
-    let deviceId = localStorage.getItem(STORAGE_KEY);
-    if (!deviceId) {
-        deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem(STORAGE_KEY, deviceId);
-    }
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('device_id') !== deviceId) {
-        urlParams.set('device_id', deviceId);
-        window.location.search = urlParams.toString();
-    }
-</script>
-""", height=0)
+# --- SISTEMA DE AUTENTICACIÓN (LOGIN / REGISTRO) ---
+if "user" not in st.session_state:
+    st.session_state["user"] = None
 
-if "device_id" not in st.query_params:
-    st.query_params["device_id"] = str(uuid.uuid4())[:8]
+def pantalla_login():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center;'>⚡ Pokémon Quiz Arcade</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #aaa;'>Inicia sesión o regístrate para guardar tu progreso en la nube.</p>", unsafe_allow_html=True)
+        
+        tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+        
+        with tab_login:
+            email_l = st.text_input("Correo electrónico", key="email_l")
+            pass_l = st.text_input("Contraseña", type="password", key="pass_l")
+            if st.button("Entrar a la Partida", use_container_width=True):
+                try:
+                    res = supabase.auth.sign_in_with_password({"email": email_l, "password": pass_l})
+                    st.session_state["user"] = res.user
+                    st.success("¡Sesión iniciada con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al iniciar sesión: Comprueba tus credenciales.")
+                    
+        with tab_registro:
+            email_r = st.text_input("Correo electrónico", key="email_r")
+            pass_r = st.text_input("Contraseña (mín. 6 caracteres)", type="password", key="pass_r")
+            if st.button("Crear Nueva Cuenta", use_container_width=True):
+                try:
+                    res = supabase.auth.sign_up({"email": email_r, "password": pass_r})
+                    st.success("¡Cuenta creada con éxito! Ya puedes iniciar sesión.")
+                except Exception as e:
+                    st.error(f"Error en el registro: {e}")
 
-DEVICE_ID = st.query_params["device_id"]
+if st.session_state["user"] is None:
+    pantalla_login()
+    st.stop()
+
+USER_ID = st.session_state["user"].id
+
+# Botón para cerrar sesión en la barra lateral
+with st.sidebar:
+    st.write(f"👤 **Usuario:** {st.session_state['user'].email}")
+    if st.button("🚪 Cerrar Sesión", use_container_width=True):
+        supabase.auth.sign_out()
+        st.session_state["user"] = None
+        st.rerun()
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
@@ -173,7 +197,7 @@ def obtener_rango_por_aciertos(aciertos_totales):
 # --- PERSISTENCIA EN SUPABASE ---
 def cargar_progreso():
     try:
-        response = supabase.table("usuarios").select("*").eq("user_id", DEVICE_ID).execute()
+        response = supabase.table("usuarios").select("*").eq("user_id", USER_ID).execute()
         if response.data and len(response.data) > 0:
             row = response.data[0]
             pokedex = {int(k): v for k, v in row.get("pokedex", {}).items()}
@@ -204,7 +228,7 @@ def cargar_progreso():
 
 def guardar_progreso():
     datos = {
-        "user_id": DEVICE_ID,
+        "user_id": USER_ID,
         "pokedex": {str(k): v for k, v in st.session_state["pokedex_capturados"].items()},
         "shinydex": {str(k): v for k, v in st.session_state["shinydex_capturados"].items()},
         "racha_maxima": st.session_state["racha_maxima"],
@@ -1212,7 +1236,7 @@ with tab_ajustes:
     st.divider()
     if st.button("🗑️ Borrar Progreso de Partida", type="secondary", use_container_width=True):
         try:
-            supabase.table("usuarios").delete().eq("user_id", DEVICE_ID).execute()
+            supabase.table("usuarios").delete().eq("user_id", USER_ID).execute()
         except Exception:
             pass
             
