@@ -133,20 +133,42 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR DE DISPOSITIVO ANÓNIMO (persistido en la URL) ---
-# BUG IMPORTANTE que tenía el código original: el device_id solo vivía en
-# st.session_state, que se pierde en cuanto se cierra la pestaña o el
-# servidor reinicia la sesión. Eso significaba que cada vez que el usuario
-# volvía a abrir la app, se le creaba un device_id NUEVO y perdía todo su
-# progreso guardado en Supabase, aunque la tabla siguiera llena de filas
-# "huérfanas". Guardándolo también como parámetro de la URL (?uid=...) el
-# progreso sobrevive a recargas y a reaperturas del mismo enlace.
+# --- IDENTIFICADOR DE DISPOSITIVO ANÓNIMO (persistido en localStorage) ---
+# El parámetro de la URL (?uid=...) por sí solo es frágil: si cierras la
+# pestaña y vuelves a entrar por la URL "limpia" (sin ese parámetro), se
+# generaba un device_id NUEVO y tu progreso anterior parecía haber
+# desaparecido, aunque seguía guardado en Supabase bajo el id antiguo.
+# Ahora el id también se guarda en el localStorage del navegador, que
+# sobrevive a cerrar pestañas/navegador (solo se pierde si borras datos de
+# navegación del sitio o entras desde otro navegador/incógnito distinto).
 if "device_id" not in st.session_state:
     uid_en_url = st.query_params.get("uid")
-    st.session_state["device_id"] = uid_en_url if uid_en_url else str(uuid.uuid4())
+    if uid_en_url:
+        st.session_state["device_id"] = uid_en_url
+    else:
+        components.html("""
+        <script>
+        (function() {
+            const clave = "pokemon_quiz_device_id";
+            let id = window.localStorage.getItem(clave);
+            if (!id) {
+                id = crypto.randomUUID();
+                window.localStorage.setItem(clave, id);
+            }
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set("uid", id);
+            window.parent.location.replace(url.toString());
+        })();
+        </script>
+        """, height=0)
+        st.stop()
 
 DEVICE_ID = st.session_state["device_id"]
 st.query_params["uid"] = DEVICE_ID
+
+# Panel de depuración temporal: quítalo cuando confirmes que todo funciona.
+with st.sidebar:
+    st.caption(f"🔧 Debug — device_id: `{DEVICE_ID}`")
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
