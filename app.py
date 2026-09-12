@@ -1,6 +1,7 @@
 import uuid
 import random
 import requests
+import concurrent.futures
 import streamlit as st
 from PIL import Image, ImageOps
 import io
@@ -133,56 +134,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR DE PARTIDA (código introducido por el usuario) ---
-# Se probó primero a persistir un id automáticamente vía la URL y luego
-# vía localStorage con un truco de JavaScript, pero ese segundo método
-# requiere que un <script> dentro de un iframe redirija la ventana
-# principal del navegador, y Streamlit Community Cloud sandboxea esos
-# iframes y bloquea esa redirección: la app se quedaba colgada en negro
-# para siempre. La solución robusta (funciona igual en local y en la
-# nube) es pedirle al usuario un código simple: si es la primera vez, se
-# le genera uno nuevo y se le muestra para que lo guarde; si ya jugó
-# antes, lo introduce y recupera su partida desde Supabase.
+# --- IDENTIFICADOR DE PARTIDA (código autogenerado, gestionable en la pestaña 🪪 Cuenta) ---
+# Antes esta pantalla bloqueaba el acceso a la app hasta que el usuario
+# eligiera una opción, cortando la navegación en cada visita nueva. Ahora
+# se genera un código automáticamente en segundo plano (como antes con el
+# UUID) y el usuario solo necesita mirarlo/cambiarlo si quiere, desde la
+# pestaña de Cuenta — la app se usa con normalidad desde el primer segundo.
 def _generar_codigo_partida() -> str:
     return uuid.uuid4().hex[:8].upper()
 
 if "device_id" not in st.session_state:
     uid_en_url = st.query_params.get("uid")
-    if uid_en_url:
-        st.session_state["device_id"] = uid_en_url
-    else:
-        st.title("🎮 Pokémon Quiz Arcade Ultimate")
-        st.subheader("🪪 Identifícate para empezar")
-        st.write("Tu progreso se guarda con un **código de partida**. Guárdalo para poder recuperarlo desde cualquier dispositivo.")
-        st.divider()
-
-        codigo_introducido = st.text_input(
-            "¿Ya tienes un código de partida? Introdúcelo aquí:",
-            placeholder="Ej: A1B2C3D4",
-            key="input_codigo_partida",
-        ).strip().upper()
-
-        col_id1, col_id2 = st.columns(2)
-        with col_id1:
-            if st.button("▶️ Continuar con este código", use_container_width=True, disabled=not codigo_introducido):
-                st.session_state["device_id"] = codigo_introducido
-                st.query_params["uid"] = codigo_introducido
-                st.rerun()
-        with col_id2:
-            if st.button("✨ Soy nuevo/a, crear partida", use_container_width=True, type="primary"):
-                nuevo_codigo = _generar_codigo_partida()
-                st.session_state["device_id"] = nuevo_codigo
-                st.query_params["uid"] = nuevo_codigo
-                st.rerun()
-
-        st.stop()
+    st.session_state["device_id"] = uid_en_url if uid_en_url else _generar_codigo_partida()
 
 DEVICE_ID = st.session_state["device_id"]
 st.query_params["uid"] = DEVICE_ID
-
-with st.sidebar:
-    st.caption(f"🪪 Tu código de partida: `{DEVICE_ID}`")
-    st.caption("Guárdalo para recuperar tu progreso desde otro dispositivo.")
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
@@ -207,95 +173,83 @@ def obtener_rango_por_aciertos(aciertos_totales):
     return rango_actual
 
 # --- PERSISTENCIA EN SUPABASE (POR DEVICE_ID) ---
-def cargar_progreso():
+# Campos que se guardan en Supabase, con su valor por defecto para
+# partidas nuevas. Antes cargar_progreso()/guardar_progreso() usaban una
+# tupla posicional de 20 valores en el mismo orden exacto en ambos sitios
+# (muy fácil de romper al añadir un campo). Con un diccionario, añadir un
+# campo nuevo es solo una línea aquí.
+_CAMPOS_PERSISTENTES = {
+    "pokedex_capturados": {},
+    "shinydex_capturados": {},
+    "racha_maxima": 0,
+    "logros": {},
+    "aciertos_totales": 0,
+    "fallos_totales": 0,
+    "monedas": 10,
+    "entrenador_actual": "Rojo",
+    "entrenadores_desbloqueados": ["Rojo"],
+    "huevos": [],
+    "cartas_coleccion": [],
+    "companero_id": 25,
+    "companero_shiny": False,
+    "titulo_elegido": "",
+    "historia_progreso": 1,
+    "misiones_diarias": {},
+    "ultima_fecha_misiones": "",
+    "ultima_ruleta": "",
+    "medallas_tipos": {},
+    "inventario": {"revivir": 0},
+    "equipo": [],  # NUEVO: hasta 3 ids de Pokémon capturados como "equipo"
+    "codigos_amigos": [],  # NUEVO: lista de {"codigo": ..., "apodo": ...}
+    "apodo_publico": "",  # NUEVO: nombre mostrado en el ranking mundial
+    "pokemon_dia_fecha": "",  # NUEVO: última fecha en que se acertó el Pokémon del día
+    "huevos_eclosionados_total": 0,  # NUEVO: contador para el título "Maestro Criador"
+    "aciertos_evolucion_total": 0,  # NUEVO: contador para el título "Genetista Evolutivo"
+}
+# Los nombres de columna en Supabase coinciden con las claves de arriba,
+# salvo estas dos (por compatibilidad con la tabla ya creada).
+_COLUMNAS_SUPABASE = {clave: clave for clave in _CAMPOS_PERSISTENTES}
+_COLUMNAS_SUPABASE["pokedex_capturados"] = "pokedex"
+_COLUMNAS_SUPABASE["shinydex_capturados"] = "shinydex"
+
+def cargar_progreso() -> dict:
+    datos = dict(_CAMPOS_PERSISTENTES)
     try:
         response = supabase.table("usuarios").select("*").eq("device_id", DEVICE_ID).execute()
-        if response.data and len(response.data) > 0:
+        if response.data:
             row = response.data[0]
-            # Usamos "row.get(x) or default" en vez de "row.get(x, default)":
-            # si la columna existe pero está a NULL en la fila, .get()
-            # devuelve None (no el default) y el código original explotaba
-            # al intentar hacer .items() sobre None.
-            pokedex = {int(k): v for k, v in (row.get("pokedex") or {}).items()}
-            shinydex = {int(k): v for k, v in (row.get("shinydex") or {}).items()}
-            racha_max = row.get("racha_maxima") or 0
-            logros = row.get("logros") or {}
-            aciertos = row.get("aciertos_totales") or 0
-            fallos = row.get("fallos_totales") or 0
-            monedas = row.get("monedas") if row.get("monedas") is not None else 10
-            entrenador_actual = row.get("entrenador_actual") or "Rojo"
-            entrenadores_desbloqueados = row.get("entrenadores_desbloqueados") or ["Rojo"]
-            huevos = row.get("huevos") or []
-            cartas_coleccion = row.get("cartas_coleccion") or []
-            companero_id = row.get("companero_id") or 25
-            companero_shiny = row.get("companero_shiny") or False
-            titulo_elegido = row.get("titulo_elegido") or ""
-            historia_progreso = row.get("historia_progreso") or 1
-            misiones_diarias = row.get("misiones_diarias") or {}
-            ultima_fecha_misiones = row.get("ultima_fecha_misiones") or ""
-            ultima_ruleta = row.get("ultima_ruleta") or ""
-            medallas_tipos = row.get("medallas_tipos") or {}
-            inventario = row.get("inventario") or {"revivir": 0}
-            return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
+            for clave_estado, valor_defecto in _CAMPOS_PERSISTENTES.items():
+                columna = _COLUMNAS_SUPABASE[clave_estado]
+                valor = row.get(columna)
+                # Si la columna no existe todavía (por ejemplo, la acabas
+                # de añadir con ALTER TABLE) o está a NULL, usamos el
+                # valor por defecto en vez de romper la carga.
+                datos[clave_estado] = valor if valor is not None else valor_defecto
+            datos["pokedex_capturados"] = {int(k): v for k, v in datos["pokedex_capturados"].items()}
+            datos["shinydex_capturados"] = {int(k): v for k, v in datos["shinydex_capturados"].items()}
     except Exception as e:
         # Antes esto solo hacía print() (va a los logs del servidor, que
         # normalmente no ves). Lo mostramos en pantalla para poder
         # diagnosticar por qué no carga/guarda el progreso.
         st.sidebar.error(f"🔴 Error CARGANDO progreso de Supabase:\n\n{e}")
-        
-    return {}, {}, 0, {}, 0, 0, 10, "Rojo", ["Rojo"], [], [], 25, False, "", 1, {}, "", "", {}, {"revivir": 0}
+    return datos
 
 def guardar_progreso():
-    datos = {
-        "device_id": DEVICE_ID,
-        "pokedex": {str(k): v for k, v in st.session_state["pokedex_capturados"].items()},
-        "shinydex": {str(k): v for k, v in st.session_state["shinydex_capturados"].items()},
-        "racha_maxima": st.session_state["racha_maxima"],
-        "logros": st.session_state["logros"],
-        "aciertos_totales": st.session_state["aciertos_totales"],
-        "fallos_totales": st.session_state["fallos_totales"],
-        "monedas": st.session_state["monedas"],
-        "entrenador_actual": st.session_state["entrenador_actual"],
-        "entrenadores_desbloqueados": st.session_state["entrenadores_desbloqueados"],
-        "huevos": st.session_state["huevos"],
-        "cartas_coleccion": st.session_state["cartas_coleccion"],
-        "companero_id": st.session_state["companero_id"],
-        "companero_shiny": st.session_state["companero_shiny"],
-        "titulo_elegido": st.session_state["titulo_elegido"],
-        "historia_progreso": st.session_state["historia_progreso"],
-        "misiones_diarias": st.session_state["misiones_diarias"],
-        "ultima_fecha_misiones": st.session_state["ultima_fecha_misiones"],
-        "ultima_ruleta": st.session_state["ultima_ruleta"],
-        "medallas_tipos": st.session_state["medallas_tipos"],
-        "inventario": st.session_state["inventario"]
-    }
+    fila = {"device_id": DEVICE_ID}
+    for clave_estado in _CAMPOS_PERSISTENTES:
+        columna = _COLUMNAS_SUPABASE[clave_estado]
+        valor = st.session_state[clave_estado]
+        if clave_estado in ("pokedex_capturados", "shinydex_capturados"):
+            valor = {str(k): v for k, v in valor.items()}
+        fila[columna] = valor
     try:
-        supabase.table("usuarios").upsert(datos, on_conflict="device_id").execute()
+        supabase.table("usuarios").upsert(fila, on_conflict="device_id").execute()
     except Exception as e:
         st.sidebar.error(f"🔴 Error GUARDANDO progreso en Supabase:\n\n{e}")
 
 if "pokedex_capturados" not in st.session_state:
-    p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini, tit_ini, hist_ini, mis_ini, f_mis_ini, u_rul_ini, med_ini, inv_ini = cargar_progreso()
-    st.session_state["pokedex_capturados"] = p_ini
-    st.session_state["shinydex_capturados"] = s_ini
-    st.session_state["racha_maxima"] = rm_ini
-    st.session_state["logros"] = l_ini
-    st.session_state["aciertos_totales"] = ac_ini
-    st.session_state["fallos_totales"] = fa_ini
-    st.session_state["monedas"] = mon_ini
-    st.session_state["entrenador_actual"] = ent_ini
-    st.session_state["entrenadores_desbloqueados"] = ents_ini
-    st.session_state["huevos"] = hue_ini
-    st.session_state["cartas_coleccion"] = car_ini
-    st.session_state["companero_id"] = comp_id_ini
-    st.session_state["companero_shiny"] = comp_sh_ini
-    st.session_state["titulo_elegido"] = tit_ini
-    st.session_state["historia_progreso"] = hist_ini
-    st.session_state["misiones_diarias"] = mis_ini
-    st.session_state["ultima_fecha_misiones"] = f_mis_ini
-    st.session_state["ultima_ruleta"] = u_rul_ini
-    st.session_state["medallas_tipos"] = med_ini
-    st.session_state["inventario"] = inv_ini
+    for _clave, _valor in cargar_progreso().items():
+        st.session_state[_clave] = _valor
 
 # Valores por defecto del estado de sesión "efímero" (no persistido en
 # Supabase). Antes eran 15 líneas de "if x not in state: state[x] = ...";
@@ -309,6 +263,7 @@ _VALORES_POR_DEFECTO = {
     "modo_juego": None,
     "rango_gens": (1, 151),
     "vistos_partida": set(),
+    "vistos_evolucion": set(),
     "ultima_notificacion": None,
     "carta_recien_abierta": None,
     "mostrar_consola_trucos": False,
@@ -403,7 +358,10 @@ LOGROS_DEF = {
     "coleccionista_tcg": {"titulo": "🎴 Coleccionista de TCG", "desc": "Obtén al menos 3 cartas en tu álbum TCG.", "condicion": lambda: len(st.session_state["cartas_coleccion"]) >= 3, "oculto": False},
     "noctambulo": {"titulo": "🌙 Entrenador Noctámbulo", "desc": "??? (Juega en la madrugada)", "condicion": lambda: datetime.datetime.now().hour in [2, 3, 4], "oculto": True},
     "racha_agua": {"titulo": "💧 Corriente Marina", "desc": "??? (Alcanza una racha de 5 aciertos seguidos)", "condicion": lambda: st.session_state["racha"] >= 5, "oculto": True},
-    "catastrofe": {"titulo": "💥 Día de Desastres", "desc": "??? (Acumula 5 fallos totales)", "condicion": lambda: st.session_state["fallos_totales"] >= 5, "oculto": True}
+    "catastrofe": {"titulo": "💥 Día de Desastres", "desc": "??? (Acumula 5 fallos totales)", "condicion": lambda: st.session_state["fallos_totales"] >= 5, "oculto": True},
+    "genetista": {"titulo": "🧬 Genetista Evolutivo", "desc": "Acierta 10 preguntas del Modo Evoluciones.", "condicion": lambda: st.session_state["aciertos_evolucion_total"] >= 10, "oculto": False},
+    "criador_maestro": {"titulo": "🥚 Maestro Criador", "desc": "Eclosiona 5 Huevos Pokémon.", "condicion": lambda: st.session_state["huevos_eclosionados_total"] >= 5, "oculto": False},
+    "entrenador_sociable": {"titulo": "🤝 Entrenador Sociable", "desc": "Añade a 3 amigos a tu lista de códigos.", "condicion": lambda: len(st.session_state["codigos_amigos"]) >= 3, "oculto": False},
 }
 
 def comprobar_logros():
@@ -424,6 +382,7 @@ def avanzar_huevos():
             h["pasos_actuales"] += 1
             if h["pasos_actuales"] >= h["pasos_necesarios"]:
                 h["eclosionado"] = True
+                st.session_state["huevos_eclosionados_total"] += 1
                 poke_id = random.randint(1, 1025)
                 h["pokemon_id"] = poke_id
                 es_shiny = random.random() < h["prob_shiny"]
@@ -441,10 +400,20 @@ def avanzar_huevos():
 def limpiar_nombre_pokemon(nombre_api: str) -> str:
     return nombre_api.replace("-", " ").title()
 
+# --- RENDIMIENTO: sesión HTTP reutilizable ---
+# Antes cada requests.get() abría una conexión TCP/TLS nueva. Con una
+# Session con pool de conexiones, las peticiones a la PokeAPI reutilizan
+# la conexión ya abierta, lo que reduce bastante la latencia percibida
+# (esto era una de las quejas de tus amigos sobre la lentitud).
+_SESION_HTTP = requests.Session()
+_adaptador_http = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
+_SESION_HTTP.mount("https://", _adaptador_http)
+_SESION_HTTP.mount("http://", _adaptador_http)
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_especie(poke_id: int):
     try:
-        r = requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=4)
+        r = _SESION_HTTP.get(f"https://pokeapi.co/api/v2/pokemon-species/{poke_id}/", timeout=4)
         r.raise_for_status()
         return r.json()
     except requests.RequestException:
@@ -453,7 +422,7 @@ def obtener_datos_especie(poke_id: int):
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_datos_pokemon(poke_id: int):
     try:
-        r = requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=4)
+        r = _SESION_HTTP.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}/", timeout=4)
         r.raise_for_status()
         return r.json()
     except requests.RequestException:
@@ -463,11 +432,20 @@ def obtener_datos_pokemon(poke_id: int):
 def descargar_imagen_bytes(url: str):
     if not url: return None
     try:
-        r = requests.get(url, timeout=4)
+        r = _SESION_HTTP.get(url, timeout=4)
         r.raise_for_status()
         return r.content
     except requests.RequestException:
         return None
+
+def obtener_datos_pokemon_completo(poke_id: int):
+    """Pide species + pokemon EN PARALELO en vez de uno detrás de otro.
+    Esto es lo que más tiempo ahorra: dos peticiones a la vez tardan lo
+    mismo que una sola en vez del doble."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ejecutor:
+        futuro_especie = ejecutor.submit(obtener_datos_especie, poke_id)
+        futuro_pokemon = ejecutor.submit(obtener_datos_pokemon, poke_id)
+        return futuro_especie.result(), futuro_pokemon.result()
 
 def obtener_nombre_por_id(poke_id: int):
     res = obtener_datos_especie(poke_id)
@@ -485,6 +463,44 @@ def _obtener_imagen_pokemon(res_poke, es_shiny=False):
     except (OSError, ValueError):
         return None
 
+# --- NUEVO: soporte para el "Modo Evoluciones" ---
+@st.cache_data(ttl=86400, show_spinner=False)
+def obtener_cadena_evolutiva(url_cadena: str):
+    try:
+        r = _SESION_HTTP.get(url_cadena, timeout=4)
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException:
+        return None
+
+def _buscar_nodo_en_cadena(nodo, nombre_especie):
+    """Busca en el árbol de evolución (chain) el nodo cuya especie coincide."""
+    if nodo["species"]["name"] == nombre_especie:
+        return nodo
+    for hijo in nodo.get("evolves_to", []):
+        encontrado = _buscar_nodo_en_cadena(hijo, nombre_especie)
+        if encontrado:
+            return encontrado
+    return None
+
+def obtener_siguiente_evolucion(res_species):
+    """Devuelve (id, nombre_limpio) de la siguiente evolución, o None si
+    el Pokémon no evoluciona más (o es un caso raro con varias ramas, en
+    cuyo caso nos quedamos con la primera)."""
+    try:
+        url_cadena = res_species["evolution_chain"]["url"]
+        cadena = obtener_cadena_evolutiva(url_cadena)
+        if not cadena: return None
+        nodo_actual = _buscar_nodo_en_cadena(cadena["chain"], res_species["name"])
+        if not nodo_actual or not nodo_actual.get("evolves_to"):
+            return None
+        siguiente_especie = nodo_actual["evolves_to"][0]["species"]
+        siguiente_id = int(siguiente_especie["url"].split("/")[-2])
+        siguiente_nombre = limpiar_nombre_pokemon(siguiente_especie["name"])
+        return siguiente_id, siguiente_nombre
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+
 def _crear_opciones_nombres(min_id, max_id, poke_id, nombre_correcto, cantidad=4):
     datos_correctos = obtener_datos_pokemon(poke_id)
     imagen_correcta = datos_correctos.get("sprites", {}).get("front_default") if datos_correctos else None
@@ -494,17 +510,34 @@ def _crear_opciones_nombres(min_id, max_id, poke_id, nombre_correcto, cantidad=4
     ids_usados = {poke_id}
     nombres_usados = {nombre_correcto.casefold()}
 
-    candidatos = list(range(min_id, max_id + 1))
+    candidatos = [i for i in range(min_id, max_id + 1) if i != poke_id]
     random.shuffle(candidatos)
 
-    for rid in candidatos:
-        if len(opciones) >= cantidad: break
-        if rid in ids_usados: continue
-        nombre = obtener_nombre_por_id(rid)
-        if nombre.casefold() in nombres_usados: continue
-        ids_usados.add(rid)
-        nombres_usados.add(nombre.casefold())
-        opciones.append({"nombre": nombre, "id": rid, "es_correcto": False})
+    # RENDIMIENTO: antes se pedía el nombre de cada candidato uno a uno
+    # (una petición a la PokeAPI detrás de otra). Pedimos un lote de
+    # golpe, EN PARALELO, y nos quedamos con los primeros que sirvan —
+    # esto es lo que más notabas como "lentitud" al empezar cada pregunta.
+    lote = candidatos[: cantidad * 4] if len(candidatos) > cantidad * 4 else candidatos
+    if lote:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ejecutor:
+            for rid, nombre in zip(lote, ejecutor.map(obtener_nombre_por_id, lote)):
+                if len(opciones) >= cantidad: break
+                if nombre.casefold() in nombres_usados: continue
+                ids_usados.add(rid)
+                nombres_usados.add(nombre.casefold())
+                opciones.append({"nombre": nombre, "id": rid, "es_correcto": False})
+
+    # Red de seguridad por si el lote no dio suficientes (rango muy pequeño
+    # o muchos nombres repetidos): completamos uno a uno como antes.
+    if len(opciones) < cantidad:
+        for rid in candidatos:
+            if len(opciones) >= cantidad: break
+            if rid in ids_usados: continue
+            nombre = obtener_nombre_por_id(rid)
+            if nombre.casefold() in nombres_usados: continue
+            ids_usados.add(rid)
+            nombres_usados.add(nombre.casefold())
+            opciones.append({"nombre": nombre, "id": rid, "es_correcto": False})
 
     if len(opciones) < cantidad: return None
     random.shuffle(opciones)
@@ -522,8 +555,7 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
 
     for poke_id in candidatos_objetivo:
         try:
-            res_species = obtener_datos_especie(poke_id)
-            res_poke = obtener_datos_pokemon(poke_id)
+            res_species, res_poke = obtener_datos_pokemon_completo(poke_id)
             if not res_species or not res_poke: continue
 
             tipos = [t["type"]["name"] for t in res_poke.get("types", [])]
@@ -552,7 +584,74 @@ def obtener_pokemon_by_rango(min_id: int, max_id: int, modo="clasico"):
             continue
     return None
 
-if st.session_state["mostrar_consola_trucos"]:
+def obtener_pokemon_evolucion_by_rango(min_id: int, max_id: int):
+    """Como obtener_pokemon_by_rango, pero para el Modo Evoluciones: busca
+    un Pokémon del rango que SÍ tenga una siguiente evolución y arma las
+    opciones de respuesta con el nombre de esa evolución (no del propio
+    Pokémon mostrado)."""
+    if min_id > max_id: return None
+    disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_evolucion"]]
+    if not disponibles:
+        st.session_state["vistos_evolucion"].clear()
+        disponibles = list(range(min_id, max_id + 1))
+
+    candidatos = disponibles[:]
+    random.shuffle(candidatos)
+
+    for poke_id in candidatos:
+        try:
+            res_species, res_poke = obtener_datos_pokemon_completo(poke_id)
+            if not res_species or not res_poke: continue
+
+            resultado_evo = obtener_siguiente_evolucion(res_species)
+            if not resultado_evo: continue
+            evo_id, evo_nombre = resultado_evo
+
+            tipos = [t["type"]["name"] for t in res_poke.get("types", [])]
+            nombre = limpiar_nombre_pokemon(res_species["name"])
+            gen = int(res_species["generation"]["url"].split("/")[-2])
+            pil_img = _obtener_imagen_pokemon(res_poke, es_shiny=False)
+
+            opciones_data = _crear_opciones_nombres(min_id, max_id, evo_id, evo_nombre)
+            if opciones_data is None: continue
+
+            st.session_state["vistos_evolucion"].add(poke_id)
+            return {
+                "id": poke_id, "nombre": nombre, "gen": gen,
+                "tipos": [t.capitalize() for t in tipos], "shiny": False,
+                "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": evo_nombre
+            }
+        except (KeyError, TypeError, ValueError, IndexError, requests.RequestException, OSError):
+            continue
+    return None
+
+def obtener_siguiente_pokemon_partida(modo: str, r_min: int, r_max: int):
+    """Punto único desde el que la pantalla de partida pide el siguiente
+    Pokémon, sea cual sea el modo de juego activo."""
+    if modo == "evolucion":
+        return obtener_pokemon_evolucion_by_rango(r_min, r_max)
+    return obtener_pokemon_by_rango(r_min, r_max, modo)
+
+def obtener_pokemon_del_dia():
+    """Pokémon 'misterioso' distinto cada día, elegido con una semilla
+    determinista (la fecha de hoy) para que sea el mismo para todo el
+    mundo durante ese día, sin tocar el generador aleatorio global."""
+    fecha_hoy = str(datetime.date.today())
+    generador_diario = random.Random(fecha_hoy)
+    poke_id = generador_diario.randint(1, 1025)
+    res_species, res_poke = obtener_datos_pokemon_completo(poke_id)
+    if not res_species or not res_poke:
+        return None
+    nombre = limpiar_nombre_pokemon(res_species["name"])
+    pil_img = _obtener_imagen_pokemon(res_poke, es_shiny=False)
+    if pil_img:
+        pil_img = pil_img.copy()
+        datos_px = pil_img.getdata()
+        nueva = [((0, 0, 0, item[3]) if item[3] > 0 else (255, 255, 255, 0)) for item in datos_px]
+        pil_img.putdata(nueva)
+    return {"id": poke_id, "nombre": nombre, "imagen": pil_img}
+
+
     st.markdown("""
     <div style="background: rgba(0,0,0,0.9); border: 2px solid #ffcc00; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
         <h3 style="color: #ffcc00; margin-top: 0;">💻 Terminal Oculta del Sistema</h3>
@@ -603,9 +702,14 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- PESTAÑAS PRINCIPALES ---
-tab_jugar, tab_historia, tab_misiones, tab_ruleta, tab_mochila, tab_progresion, tab_safari, tab_guarderia, tab_tcg, tab_entrenadores, tab_mercado, tab_pokedex, tab_shinydex, tab_stats, tab_ajustes = st.tabs([
-    "🎮 Jugar", "🗺️ Modo Historia", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "🏆 Progresión", "🗺️ Safari", "🥚 Guardería", "🎴 TCG", "👥 Entrenadores", "🛒 Mercado", "📖 Pokédex", "✨ ShinyDex", "📊 Stats", "⚙️ Ajustes"
+tab_jugar, tab_historia, tab_safari, tab_misiones, tab_ruleta, tab_mochila, tab_pokedex, tab_shinydex, tab_tcg, tab_guarderia, tab_equipo, tab_ranking, tab_entrenadores, tab_progresion, tab_stats, tab_mercado, tab_cuenta, tab_ajustes = st.tabs([
+    "🎮 Jugar", "🗺️ Modo Historia", "🌾 Safari", "🎯 Misiones", "🎡 Ruleta", "🎒 Mochila", "📖 Pokédex", "✨ ShinyDex", "🎴 TCG", "🥚 Guardería", "⚔️ Equipo", "🌍 Ranking", "👥 Entrenadores", "🏆 Progresión", "📊 Stats", "🛒 Mercado", "🪪 Cuenta", "⚙️ Ajustes"
 ])
+# NOTA sobre navegación: el orden de esta lista es el que fija el orden
+# real de las pestañas en pantalla (no el orden en que aparecen los
+# bloques "with tab_x:" más abajo en el archivo). Se han agrupado por
+# tema para que sea más fácil ubicarse: Arcade → Diario → Colección →
+# Social → Progreso → Cuenta.
 
 with tab_jugar:
     if st.session_state["derrota"]:
@@ -628,11 +732,41 @@ with tab_jugar:
 
     elif not st.session_state["en_partida"]:
         st.title("🕹️ Salón de Juegos Arcade")
+
+        # --- NUEVO: banner "Pokémon del Día" ---
+        st.markdown("#### ⭐ Pokémon del Día")
+        poke_dia = obtener_pokemon_del_dia()
+        ya_resuelto_hoy = st.session_state["pokemon_dia_fecha"] == hoy_str
+        if poke_dia:
+            col_pd1, col_pd2 = st.columns([1, 3])
+            with col_pd1:
+                if poke_dia["imagen"]: st.image(poke_dia["imagen"], width=100)
+            with col_pd2:
+                if ya_resuelto_hoy:
+                    st.success(f"✅ Ya acertaste el Pokémon de hoy: **{poke_dia['nombre']}**. ¡Vuelve mañana a por otro!")
+                else:
+                    st.caption("Adivina qué Pokémon esconde la silueta de hoy. ¡Acertar da un bonus extra de monedas!")
+                    col_pd_in, col_pd_btn = st.columns([3, 1])
+                    with col_pd_in:
+                        respuesta_dia = st.text_input("Tu respuesta:", key="input_pokemon_dia", label_visibility="collapsed", placeholder="Nombre del Pokémon...")
+                    with col_pd_btn:
+                        if st.button("🔍 Comprobar", key="btn_check_pokemon_dia", use_container_width=True):
+                            if respuesta_dia.strip().casefold() == poke_dia["nombre"].casefold():
+                                st.session_state["monedas"] += 150
+                                st.session_state["pokemon_dia_fecha"] = hoy_str
+                                guardar_progreso()
+                                st.success(f"🎉 ¡Correcto! Era {poke_dia['nombre']}. +150 Poké-Coins")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error("❌ No es correcto, ¡sigue intentándolo!")
+        st.divider()
+
         gen_seleccionada = st.selectbox("📂 Rango de Generaciones:", list(RANGOS_GENERACIONES.keys()))
         st.session_state["rango_gens"] = RANGOS_GENERACIONES[gen_seleccionada]
         st.divider()
         
-        col_m1, col_m2 = st.columns(2)
+        col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
             st.markdown("""
             <div class="minigame-card">
@@ -672,6 +806,23 @@ with tab_jugar:
                 guardar_progreso()
                 st.rerun()
 
+        with col_m3:
+            st.markdown("""
+            <div class="minigame-card">
+                <h3>🧬 Modo Evoluciones</h3>
+                <p style="color:#aaa; font-size:13px; min-height:35px;">Adivina en qué evoluciona.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("🧬 Jugar Evoluciones", key="btn_m_evolucion", use_container_width=True):
+                st.session_state["en_partida"] = True
+                st.session_state["modo_juego"] = "evolucion"
+                st.session_state["puntos"] = 0
+                st.session_state["racha"] = 0
+                st.session_state["vistos_evolucion"].clear()
+                r_min, r_max = st.session_state["rango_gens"]
+                st.session_state["pokemon_actual"] = obtener_pokemon_evolucion_by_rango(r_min, r_max)
+                st.rerun()
+
     else:
         modo_actual = st.session_state.get("modo_juego", "clasico")
         st.title("🎯 Partida Arcade Activa")
@@ -708,15 +859,18 @@ with tab_jugar:
         poke = st.session_state.get("pokemon_actual")
         r_min, r_max = st.session_state["rango_gens"]
         if not poke:
-            poke = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+            poke = obtener_siguiente_pokemon_partida(modo_actual, r_min, r_max)
             st.session_state["pokemon_actual"] = poke
             
         if poke:
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
                 if poke["imagen"]: st.image(poke["imagen"], width=260)
-                
-            st.subheader("¿Cuál de estos Pokémon es el correcto?")
+
+            if modo_actual == "evolucion":
+                st.subheader(f"¿En qué evoluciona **{poke['nombre']}**?")
+            else:
+                st.subheader("¿Cuál de estos Pokémon es el correcto?")
             for idx, opc_item in enumerate(poke.get("opciones", [])[:4]):
                 opc_nombre = opc_item["nombre"]
                 if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
@@ -727,6 +881,8 @@ with tab_jugar:
                         st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
                         if poke["shiny"]:
                             st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
+                        if modo_actual == "evolucion":
+                            st.session_state["aciertos_evolucion_total"] += 1
                         
                         for t_elem in poke["tipos"]:
                             if t_elem not in st.session_state["medallas_tipos"]:
@@ -752,7 +908,7 @@ with tab_jugar:
                         
                         guardar_progreso()
                         agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
-                        st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+                        st.session_state["pokemon_actual"] = obtener_siguiente_pokemon_partida(modo_actual, r_min, r_max)
                         st.rerun()
                     else:
                         st.session_state["fallos_totales"] += 1
@@ -765,7 +921,7 @@ with tab_jugar:
             # la pantalla se quedaba completamente en blanco sin avisar.
             st.error("⚠️ No se pudo cargar un Pokémon (falló la conexión con PokeAPI). Inténtalo de nuevo.")
             if st.button("🔄 Reintentar", use_container_width=True):
-                st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+                st.session_state["pokemon_actual"] = obtener_siguiente_pokemon_partida(modo_actual, r_min, r_max)
                 st.rerun()
 
         st.divider()
@@ -1117,6 +1273,86 @@ with tab_tcg:
                 </div>
                 """, unsafe_allow_html=True)
 
+with tab_ranking:
+    st.title("🌍 Ranking")
+    st.caption("El ranking mundial se basa en un apodo público que tú eliges — tu código de partida nunca se muestra a otros jugadores.")
+    st.divider()
+
+    st.subheader("🪪 Tu apodo público")
+    nuevo_apodo = st.text_input("Apodo que verán otros en el ranking:", value=st.session_state["apodo_publico"], max_chars=20, placeholder="Ej: AshDeKanto")
+    if st.button("💾 Guardar apodo", key="btn_guardar_apodo"):
+        st.session_state["apodo_publico"] = nuevo_apodo.strip()
+        guardar_progreso()
+        st.success("✔ Apodo actualizado.")
+        st.rerun()
+
+    st.divider()
+    st.subheader("🏆 Top 10 Mundial (por aciertos totales)")
+    try:
+        respuesta_top = supabase.table("usuarios").select("apodo_publico,aciertos_totales,racha_maxima").order("aciertos_totales", desc=True).limit(10).execute()
+        filas_top = respuesta_top.data or []
+    except Exception as e:
+        filas_top = []
+        st.error(f"No se pudo cargar el ranking mundial:\n\n{e}")
+
+    if filas_top:
+        medallas_pos = ["🥇", "🥈", "🥉"]
+        for i, fila in enumerate(filas_top):
+            medalla = medallas_pos[i] if i < 3 else f"#{i + 1}"
+            apodo = fila.get("apodo_publico") or "Entrenador Anónimo"
+            st.write(f"{medalla} **{apodo}** — {fila.get('aciertos_totales', 0)} aciertos · racha máx. {fila.get('racha_maxima', 0)}")
+    else:
+        st.info("Aún no hay datos suficientes para el ranking mundial.")
+
+    st.divider()
+    st.subheader("🤝 Mis Amigos")
+    st.caption("Añade el código de partida de un amigo (te lo tiene que pasar él) para comparar vuestro progreso.")
+    col_am1, col_am2, col_am3 = st.columns([2, 2, 1])
+    with col_am1:
+        codigo_amigo_nuevo = st.text_input("Código de amigo:", key="input_codigo_amigo", placeholder="A1B2C3D4").strip().upper()
+    with col_am2:
+        apodo_amigo_nuevo = st.text_input("Apodo (solo para ti):", key="input_apodo_amigo", placeholder="Ej: Mi hermano")
+    with col_am3:
+        st.write("")
+        if st.button("➕ Añadir", use_container_width=True, key="btn_add_amigo"):
+            if codigo_amigo_nuevo and codigo_amigo_nuevo != DEVICE_ID:
+                ya_existe = any(a["codigo"] == codigo_amigo_nuevo for a in st.session_state["codigos_amigos"])
+                if not ya_existe:
+                    st.session_state["codigos_amigos"].append({"codigo": codigo_amigo_nuevo, "apodo": apodo_amigo_nuevo or codigo_amigo_nuevo})
+                    guardar_progreso()
+                    st.success("✔ Amigo añadido.")
+                    st.rerun()
+                else:
+                    st.warning("Ese código ya está en tu lista.")
+            else:
+                st.warning("Introduce un código válido (que no sea el tuyo).")
+
+    if st.session_state["codigos_amigos"]:
+        for idx_am, amigo in enumerate(st.session_state["codigos_amigos"]):
+            try:
+                resp_amigo = supabase.table("usuarios").select("aciertos_totales,racha_maxima,pokedex,shinydex").eq("device_id", amigo["codigo"]).execute()
+                datos_amigo = resp_amigo.data[0] if resp_amigo.data else None
+            except Exception:
+                datos_amigo = None
+
+            c_am1, c_am2, c_am3 = st.columns([2, 3, 1])
+            with c_am1:
+                st.write(f"**{amigo['apodo']}**")
+            with c_am2:
+                if datos_amigo:
+                    pokedex_len_amigo = len(datos_amigo.get("pokedex") or {})
+                    shiny_len_amigo = len(datos_amigo.get("shinydex") or {})
+                    st.caption(f"✅ {datos_amigo.get('aciertos_totales', 0)} aciertos · 🔥 racha máx {datos_amigo.get('racha_maxima', 0)} · 📖 {pokedex_len_amigo} Pokédex · ✨ {shiny_len_amigo} shinies")
+                else:
+                    st.caption("No se encontró ese código en Supabase.")
+            with c_am3:
+                if st.button("🗑️", key=f"del_amigo_{idx_am}"):
+                    st.session_state["codigos_amigos"].pop(idx_am)
+                    guardar_progreso()
+                    st.rerun()
+    else:
+        st.info("Todavía no has añadido a ningún amigo.")
+
 with tab_entrenadores:
     st.title("👥 Entrenadores")
     st.write("Desbloquea avatares para conseguir bonificaciones pasivas de Poké-Coins.")
@@ -1209,6 +1445,41 @@ with tab_shinydex:
             with c2: st.write(f"### #{pid:03d} - {data['nombre']} ✨")
             st.divider()
 
+with tab_equipo:
+    st.title("⚔️ Mi Equipo")
+    st.write("Elige hasta 3 Pokémon de tu Pokédex como tu equipo titular. De momento es una vitrina personal — más adelante puede ser la base de un modo de combate.")
+    st.divider()
+
+    if not st.session_state["pokedex_capturados"]:
+        st.info("Todavía no tienes Pokémon en tu Pokédex. ¡Juega alguna partida primero!")
+    else:
+        nombres_disponibles_eq = {f"#{pid:03d} - {data['nombre']}": pid for pid, data in sorted(st.session_state["pokedex_capturados"].items())}
+        etiquetas_actuales = [et for et, pid in nombres_disponibles_eq.items() if pid in st.session_state["equipo"]]
+
+        seleccion_equipo = st.multiselect(
+            "Selecciona hasta 3 Pokémon:",
+            options=list(nombres_disponibles_eq.keys()),
+            default=etiquetas_actuales,
+            max_selections=3,
+        )
+        if st.button("💾 Guardar Equipo", use_container_width=True, type="primary"):
+            st.session_state["equipo"] = [nombres_disponibles_eq[et] for et in seleccion_equipo]
+            guardar_progreso()
+            st.success("✔ ¡Equipo guardado!")
+            st.rerun()
+
+        st.divider()
+        if st.session_state["equipo"]:
+            st.subheader("Tu equipo actual")
+            cols_equipo = st.columns(len(st.session_state["equipo"]))
+            for col_eq, pid_eq in zip(cols_equipo, st.session_state["equipo"]):
+                with col_eq:
+                    dato_eq = st.session_state["pokedex_capturados"].get(pid_eq, {"nombre": "?"})
+                    st.image(f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pid_eq}.png", width=110)
+                    st.caption(f"#{pid_eq:03d} - {dato_eq['nombre']}")
+        else:
+            st.info("Aún no has elegido tu equipo.")
+
 with tab_stats:
     st.title("📊 Estadísticas, Medallas Elementales y Logros")
     comprobar_logros()
@@ -1239,13 +1510,50 @@ with tab_stats:
             else:
                 st.info(f"🔒 **{datos['titulo']}** (Pendiente) — {datos['desc']}")
 
+with tab_cuenta:
+    st.title("🪪 Cuenta")
+    st.write("Tu progreso se guarda con un código de partida. Guárdalo para recuperar tu partida desde cualquier dispositivo o navegador.")
+    st.divider()
+
+    st.subheader("Tu código actual")
+    st.code(DEVICE_ID, language=None)
+    st.caption("Cópialo y guárdalo en un sitio seguro (notas del móvil, gestor de contraseñas...).")
+
+    st.divider()
+    st.subheader("¿Ya tienes otro código? Cámbiate a esa partida")
+    st.warning("⚠️ Al cambiar de código dejarás de ver el progreso actual en esta pestaña (seguirá guardado bajo tu código de antes, no se borra).")
+    codigo_para_cambiar = st.text_input("Introduce el código al que quieres cambiarte:", placeholder="Ej: A1B2C3D4", key="input_cambiar_codigo").strip().upper()
+    if st.button("🔁 Cambiar de partida", disabled=not codigo_para_cambiar):
+        st.session_state["device_id"] = codigo_para_cambiar
+        st.query_params["uid"] = codigo_para_cambiar
+        # Forzamos una recarga completa de los datos persistentes para el
+        # nuevo código (si no, seguiríamos viendo los datos del anterior).
+        for _clave in _CAMPOS_PERSISTENTES:
+            if _clave in st.session_state:
+                del st.session_state[_clave]
+        st.rerun()
+
 with tab_ajustes:
+
     st.title("⚙️ Ajustes y Configuración")
     st.write("Gestiona tu título de perfil, tu compañero y el almacenamiento.")
     st.divider()
     
     st.subheader("👑 Selección de Título")
+    st.caption("Los títulos con 🔒 son exclusivos: se desbloquean al completar el logro correspondiente en la pestaña de Progreso.")
     titulos_disponibles = ["", "🌱 Novato de Pueblo Paleta", "📘 Coleccionista Experto", "⚡ Maestro Pokémon", "👑 Campeón Indiscutible"]
+    # Títulos exclusivos: solo se pueden elegir si el logro que los
+    # desbloquea ya está conseguido.
+    TITULOS_EXCLUSIVOS_POR_LOGRO = {
+        "suerte_shiny": "✨ Cazador de Variocolor",
+        "coleccionista_tcg": "🎴 Maestro Coleccionista TCG",
+        "genetista": "🧬 Genetista Evolutivo",
+        "criador_maestro": "🥚 Maestro Criador",
+        "entrenador_sociable": "🤝 Entrenador Sociable",
+    }
+    for _clave_logro, _titulo_texto in TITULOS_EXCLUSIVOS_POR_LOGRO.items():
+        if st.session_state["logros"].get(_clave_logro):
+            titulos_disponibles.append(_titulo_texto)
     titulo_elegido_actual = st.selectbox("Elige tu título:", titulos_disponibles, index=titulos_disponibles.index(st.session_state["titulo_elegido"]) if st.session_state["titulo_elegido"] in titulos_disponibles else 0)
     if st.button("Guardar Título"):
         st.session_state["titulo_elegido"] = titulo_elegido_actual
@@ -1301,5 +1609,11 @@ with tab_ajustes:
         st.session_state["historia_progreso"] = 1
         st.session_state["medallas_tipos"] = {}
         st.session_state["inventario"] = {"revivir": 0}
+        st.session_state["equipo"] = []
+        st.session_state["codigos_amigos"] = []
+        st.session_state["apodo_publico"] = ""
+        st.session_state["pokemon_dia_fecha"] = ""
+        st.session_state["huevos_eclosionados_total"] = 0
+        st.session_state["aciertos_evolucion_total"] = 0
         st.success("✅ Progreso restablecido.")
         st.rerun()
