@@ -134,18 +134,75 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR DE PARTIDA (código autogenerado, gestionable en la pestaña 🪪 Cuenta) ---
-# Antes esta pantalla bloqueaba el acceso a la app hasta que el usuario
-# eligiera una opción, cortando la navegación en cada visita nueva. Ahora
-# se genera un código automáticamente en segundo plano (como antes con el
-# UUID) y el usuario solo necesita mirarlo/cambiarlo si quiere, desde la
-# pestaña de Cuenta — la app se usa con normalidad desde el primer segundo.
+# --- IDENTIFICADOR DE PARTIDA ---
+# Vuelta a la pantalla de bienvenida bloqueante (tal y como estaba antes):
+# hasta que el usuario elige una opción no se entra a la app. Además,
+# ahora se puede elegir un código propio y memorable (p.ej. RANGO_ESMERALDA)
+# en vez de depender solo de un código aleatorio fácil de perder.
 def _generar_codigo_partida() -> str:
     return uuid.uuid4().hex[:8].upper()
 
+def _codigo_tiene_formato_valido(codigo: str) -> bool:
+    return 3 <= len(codigo) <= 24 and all(c.isalnum() or c == "_" for c in codigo)
+
+def _codigo_ya_existe(codigo: str) -> bool:
+    try:
+        resp = supabase.table("usuarios").select("device_id").eq("device_id", codigo).execute()
+        return bool(resp.data)
+    except Exception:
+        return False  # si Supabase falla aquí, dejamos seguir; fallará más tarde con el error visible de siempre
+
 if "device_id" not in st.session_state:
     uid_en_url = st.query_params.get("uid")
-    st.session_state["device_id"] = uid_en_url if uid_en_url else _generar_codigo_partida()
+    if uid_en_url:
+        st.session_state["device_id"] = uid_en_url
+    else:
+        st.title("🎮 Pokémon Quiz Arcade Ultimate")
+        st.subheader("🪪 Identifícate para empezar")
+        st.write("Tu progreso se guarda con un **código de partida**. Guárdalo bien para poder recuperarlo desde cualquier dispositivo.")
+        st.divider()
+
+        codigo_introducido = st.text_input(
+            "¿Ya tienes un código de partida? Introdúcelo aquí:",
+            placeholder="Ej: A1B2C3D4",
+            key="input_codigo_partida",
+        ).strip().upper()
+
+        col_id1, col_id2 = st.columns(2)
+        with col_id1:
+            if st.button("▶️ Continuar con este código", use_container_width=True, disabled=not codigo_introducido):
+                st.session_state["device_id"] = codigo_introducido
+                st.query_params["uid"] = codigo_introducido
+                st.rerun()
+        with col_id2:
+            if st.button("✨ Soy nuevo/a, crear partida", use_container_width=True, type="primary"):
+                st.session_state["mostrar_crear_partida"] = True
+
+        if st.session_state.get("mostrar_crear_partida"):
+            st.divider()
+            st.write("Puedes elegir tú mismo/a un código memorable (mejor que uno al azar, así no lo pierdes tan fácil) o dejarlo en blanco para que te generemos uno.")
+            codigo_deseado = st.text_input(
+                "Tu código (opcional):",
+                placeholder="Ej: RANGO_ESMERALDA",
+                key="input_codigo_deseado",
+            ).strip().upper().replace(" ", "_")
+            if st.button("✅ Confirmar y crear partida", type="primary", use_container_width=True):
+                if codigo_deseado:
+                    if not _codigo_tiene_formato_valido(codigo_deseado):
+                        st.error("Usa solo letras, números y guiones bajos (entre 3 y 24 caracteres).")
+                    elif _codigo_ya_existe(codigo_deseado):
+                        st.error("Ese código ya está en uso por otro jugador, elige otro.")
+                    else:
+                        st.session_state["device_id"] = codigo_deseado
+                        st.query_params["uid"] = codigo_deseado
+                        st.rerun()
+                else:
+                    nuevo_codigo = _generar_codigo_partida()
+                    st.session_state["device_id"] = nuevo_codigo
+                    st.query_params["uid"] = nuevo_codigo
+                    st.rerun()
+
+        st.stop()
 
 DEVICE_ID = st.session_state["device_id"]
 st.query_params["uid"] = DEVICE_ID
@@ -153,14 +210,14 @@ st.query_params["uid"] = DEVICE_ID
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
     {"nombre": "Bronce", "aciertos": 0, "icono": "🥉"},
-    {"nombre": "Plata", "aciertos": 15, "icono": "🥈"},
-    {"nombre": "Oro", "aciertos": 25, "icono": "🥇"},
-    {"nombre": "Diamante", "aciertos": 40, "icono": "💎"},
-    {"nombre": "Perla", "aciertos": 60, "icono": "🔮"},
-    {"nombre": "Platino", "aciertos": 65, "icono": "🛡️"},
-    {"nombre": "Rubí", "aciertos": 70, "icono": "🔴"},
-    {"nombre": "Zafiro", "aciertos": 85, "icono": "🔵"},
-    {"nombre": "Esmeralda", "aciertos": 100, "icono": "💚"}
+    {"nombre": "Plata", "aciertos": 17, "icono": "🥈"},
+    {"nombre": "Oro", "aciertos": 29, "icono": "🥇"},
+    {"nombre": "Diamante", "aciertos": 46, "icono": "💎"},
+    {"nombre": "Perla", "aciertos": 69, "icono": "🔮"},
+    {"nombre": "Platino", "aciertos": 75, "icono": "🛡️"},
+    {"nombre": "Rubí", "aciertos": 81, "icono": "🔴"},
+    {"nombre": "Zafiro", "aciertos": 98, "icono": "🔵"},
+    {"nombre": "Esmeralda", "aciertos": 115, "icono": "💚"}
 ]
 
 def obtener_rango_por_aciertos(aciertos_totales):
@@ -264,6 +321,7 @@ _VALORES_POR_DEFECTO = {
     "rango_gens": (1, 151),
     "vistos_partida": set(),
     "vistos_evolucion": set(),
+    "vistos_generacion": set(),
     "ultima_notificacion": None,
     "carta_recien_abierta": None,
     "mostrar_consola_trucos": False,
@@ -630,7 +688,60 @@ def obtener_siguiente_pokemon_partida(modo: str, r_min: int, r_max: int):
     Pokémon, sea cual sea el modo de juego activo."""
     if modo == "evolucion":
         return obtener_pokemon_evolucion_by_rango(r_min, r_max)
+    if modo == "generacion":
+        return obtener_pokemon_generacion_by_rango(r_min, r_max)
     return obtener_pokemon_by_rango(r_min, r_max, modo)
+
+# --- NUEVO: Modo "Adivina la Generación" (el minijuego original que se
+# había perdido en versiones anteriores del código) ---
+NOMBRES_GENERACIONES_CORTOS = {
+    1: "Kanto (Gen. 1)", 2: "Johto (Gen. 2)", 3: "Hoenn (Gen. 3)",
+    4: "Sinnoh (Gen. 4)", 5: "Teselia (Gen. 5)", 6: "Kalos (Gen. 6)",
+    7: "Alola (Gen. 7)", 8: "Galar (Gen. 8)", 9: "Paldea (Gen. 9)",
+}
+
+def obtener_pokemon_generacion_by_rango(min_id: int, max_id: int):
+    if min_id > max_id: return None
+    disponibles = [i for i in range(min_id, max_id + 1) if i not in st.session_state["vistos_generacion"]]
+    if not disponibles:
+        st.session_state["vistos_generacion"].clear()
+        disponibles = list(range(min_id, max_id + 1))
+
+    candidatos = disponibles[:]
+    random.shuffle(candidatos)
+
+    for poke_id in candidatos:
+        try:
+            res_species, res_poke = obtener_datos_pokemon_completo(poke_id)
+            if not res_species or not res_poke: continue
+
+            gen = int(res_species["generation"]["url"].split("/")[-2])
+            if gen not in NOMBRES_GENERACIONES_CORTOS: continue
+
+            tipos = [t["type"]["name"] for t in res_poke.get("types", [])]
+            nombre = limpiar_nombre_pokemon(res_species["name"])
+            pil_img = _obtener_imagen_pokemon(res_poke, es_shiny=False)
+
+            gen_correcta_nombre = NOMBRES_GENERACIONES_CORTOS[gen]
+            otras_gens = [g for g in NOMBRES_GENERACIONES_CORTOS if g != gen]
+            random.shuffle(otras_gens)
+            gens_distractoras = otras_gens[:3]
+            if len(gens_distractoras) < 3: continue
+
+            opciones_data = [{"nombre": gen_correcta_nombre, "id": gen, "es_correcto": True}]
+            for g_d in gens_distractoras:
+                opciones_data.append({"nombre": NOMBRES_GENERACIONES_CORTOS[g_d], "id": g_d, "es_correcto": False})
+            random.shuffle(opciones_data)
+
+            st.session_state["vistos_generacion"].add(poke_id)
+            return {
+                "id": poke_id, "nombre": nombre, "gen": gen,
+                "tipos": [t.capitalize() for t in tipos], "shiny": False,
+                "imagen": pil_img, "opciones": opciones_data, "respuesta_correcta": gen_correcta_nombre
+            }
+        except (KeyError, TypeError, ValueError, IndexError, requests.RequestException, OSError):
+            continue
+    return None
 
 def obtener_pokemon_del_dia():
     """Pokémon 'misterioso' distinto cada día, elegido con una semilla
@@ -733,40 +844,18 @@ with tab_jugar:
     elif not st.session_state["en_partida"]:
         st.title("🕹️ Salón de Juegos Arcade")
 
-        # --- NUEVO: banner "Pokémon del Día" ---
-        st.markdown("#### ⭐ Pokémon del Día")
-        poke_dia = obtener_pokemon_del_dia()
-        ya_resuelto_hoy = st.session_state["pokemon_dia_fecha"] == hoy_str
-        if poke_dia:
-            col_pd1, col_pd2 = st.columns([1, 3])
-            with col_pd1:
-                if poke_dia["imagen"]: st.image(poke_dia["imagen"], width=100)
-            with col_pd2:
-                if ya_resuelto_hoy:
-                    st.success(f"✅ Ya acertaste el Pokémon de hoy: **{poke_dia['nombre']}**. ¡Vuelve mañana a por otro!")
-                else:
-                    st.caption("Adivina qué Pokémon esconde la silueta de hoy. ¡Acertar da un bonus extra de monedas!")
-                    col_pd_in, col_pd_btn = st.columns([3, 1])
-                    with col_pd_in:
-                        respuesta_dia = st.text_input("Tu respuesta:", key="input_pokemon_dia", label_visibility="collapsed", placeholder="Nombre del Pokémon...")
-                    with col_pd_btn:
-                        if st.button("🔍 Comprobar", key="btn_check_pokemon_dia", use_container_width=True):
-                            if respuesta_dia.strip().casefold() == poke_dia["nombre"].casefold():
-                                st.session_state["monedas"] += 150
-                                st.session_state["pokemon_dia_fecha"] = hoy_str
-                                guardar_progreso()
-                                st.success(f"🎉 ¡Correcto! Era {poke_dia['nombre']}. +150 Poké-Coins")
-                                st.balloons()
-                                st.rerun()
-                            else:
-                                st.error("❌ No es correcto, ¡sigue intentándolo!")
-        st.divider()
-
+        # El selector de rango y las tarjetas de minijuego van primero,
+        # sin nada por delante que obligue a bajar para llegar a ellos.
         gen_seleccionada = st.selectbox("📂 Rango de Generaciones:", list(RANGOS_GENERACIONES.keys()))
         st.session_state["rango_gens"] = RANGOS_GENERACIONES[gen_seleccionada]
         st.divider()
-        
-        col_m1, col_m2, col_m3 = st.columns(3)
+
+        # 2x2: dos filas de dos columnas, en vez de una sola fila con las
+        # tarjetas apretadas (ahora que son 4 minijuegos, encajan mejor así).
+        fila_m1 = st.columns(2)
+        fila_m2 = st.columns(2)
+        col_m1, col_m2 = fila_m1
+        col_m3, col_m4 = fila_m2
         with col_m1:
             st.markdown("""
             <div class="minigame-card">
@@ -823,6 +912,53 @@ with tab_jugar:
                 st.session_state["pokemon_actual"] = obtener_pokemon_evolucion_by_rango(r_min, r_max)
                 st.rerun()
 
+        with col_m4:
+            st.markdown("""
+            <div class="minigame-card">
+                <h3>🌐 Adivina la Generación</h3>
+                <p style="color:#aaa; font-size:13px; min-height:35px;">El minijuego original. ¿De qué juego es?</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("🌐 Jugar Generación", key="btn_m_generacion", use_container_width=True):
+                st.session_state["en_partida"] = True
+                st.session_state["modo_juego"] = "generacion"
+                st.session_state["puntos"] = 0
+                st.session_state["racha"] = 0
+                st.session_state["vistos_generacion"].clear()
+                r_min, r_max = st.session_state["rango_gens"]
+                st.session_state["pokemon_actual"] = obtener_pokemon_generacion_by_rango(r_min, r_max)
+                st.rerun()
+
+        # Pokémon del Día en un desplegable cerrado por defecto: así no
+        # empuja las tarjetas de minijuego hacia abajo.
+        st.divider()
+        with st.expander("⭐ Pokémon del Día (pulsa para abrir)"):
+            poke_dia = obtener_pokemon_del_dia()
+            ya_resuelto_hoy = st.session_state["pokemon_dia_fecha"] == hoy_str
+            if poke_dia:
+                col_pd1, col_pd2 = st.columns([1, 3])
+                with col_pd1:
+                    if poke_dia["imagen"]: st.image(poke_dia["imagen"], width=100)
+                with col_pd2:
+                    if ya_resuelto_hoy:
+                        st.success(f"✅ Ya acertaste el Pokémon de hoy: **{poke_dia['nombre']}**. ¡Vuelve mañana a por otro!")
+                    else:
+                        st.caption("Adivina qué Pokémon esconde la silueta de hoy. ¡Acertar da un bonus extra de monedas!")
+                        col_pd_in, col_pd_btn = st.columns([3, 1])
+                        with col_pd_in:
+                            respuesta_dia = st.text_input("Tu respuesta:", key="input_pokemon_dia", label_visibility="collapsed", placeholder="Nombre del Pokémon...")
+                        with col_pd_btn:
+                            if st.button("🔍 Comprobar", key="btn_check_pokemon_dia", use_container_width=True):
+                                if respuesta_dia.strip().casefold() == poke_dia["nombre"].casefold():
+                                    st.session_state["monedas"] += 150
+                                    st.session_state["pokemon_dia_fecha"] = hoy_str
+                                    guardar_progreso()
+                                    st.success(f"🎉 ¡Correcto! Era {poke_dia['nombre']}. +150 Poké-Coins")
+                                    st.balloons()
+                                    st.rerun()
+                                else:
+                                    st.error("❌ No es correcto, ¡sigue intentándolo!")
+
     else:
         modo_actual = st.session_state.get("modo_juego", "clasico")
         st.title("🎯 Partida Arcade Activa")
@@ -869,11 +1005,21 @@ with tab_jugar:
 
             if modo_actual == "evolucion":
                 st.subheader(f"¿En qué evoluciona **{poke['nombre']}**?")
+            elif modo_actual == "generacion":
+                st.subheader(f"¿De qué generación es **{poke['nombre']}**?")
             else:
                 st.subheader("¿Cuál de estos Pokémon es el correcto?")
-            for idx, opc_item in enumerate(poke.get("opciones", [])[:4]):
+
+            # Opciones en grid horizontal 2x2 en vez de una lista vertical.
+            opciones_lista = poke.get("opciones", [])[:4]
+            fila_op1 = st.columns(2)
+            fila_op2 = st.columns(2)
+            columnas_opciones = fila_op1 + fila_op2
+            for idx, (opc_item, col_op) in enumerate(zip(opciones_lista, columnas_opciones)):
                 opc_nombre = opc_item["nombre"]
-                if st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}"):
+                with col_op:
+                    boton_pulsado = st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}")
+                if boton_pulsado:
                     if opc_nombre == poke["respuesta_correcta"]:
                         st.session_state["puntos"] += 1
                         st.session_state["racha"] += 1
@@ -993,9 +1139,15 @@ with tab_historia:
                     if poke_h["imagen"]: st.image(poke_h["imagen"], width=240)
             
             st.write("Elige la respuesta correcta:")
-            for idx, opc_item in enumerate(poke_h["opciones"][:4]):
+            opciones_hist = poke_h["opciones"][:4]
+            fila_h1 = st.columns(2)
+            fila_h2 = st.columns(2)
+            columnas_hist = fila_h1 + fila_h2
+            for idx, (opc_item, col_h) in enumerate(zip(opciones_hist, columnas_hist)):
                 opc_nombre = opc_item["nombre"]
-                if st.button(opc_nombre, key=f"hist_opc_{idx}", use_container_width=True):
+                with col_h:
+                    boton_hist_pulsado = st.button(opc_nombre, key=f"hist_opc_{idx}", use_container_width=True)
+                if boton_hist_pulsado:
                     if opc_nombre == poke_h["respuesta_correcta"]:
                         if is_sup:
                             st.session_state["racha_supervivencia"] += 1
