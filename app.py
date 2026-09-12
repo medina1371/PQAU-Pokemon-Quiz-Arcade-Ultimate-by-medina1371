@@ -18,12 +18,21 @@ st.set_page_config(
 )
 
 # --- CONFIGURACIÓN DE SUPABASE ---
+# IMPORTANTE: nunca guardes credenciales reales como fallback en el código
+# fuente (acaban expuestas si subes el proyecto a un repositorio público).
+# Configúralas siempre en .streamlit/secrets.toml o en los "Secrets" de
+# Streamlit Cloud, bajo una sección [supabase].
 try:
     SUPABASE_URL = st.secrets["supabase"]["url"]
     SUPABASE_KEY = st.secrets["supabase"]["key"]
 except Exception:
-    SUPABASE_URL = "https://xlytnqvdsznfapjjqarp.supabase.co"
-    SUPABASE_KEY = "sb_publishable_GS6VprT94eYwkjuOo9G8jA_uHE9RKFF"
+    st.error(
+        "⚠️ Faltan las credenciales de Supabase. Añade `SUPABASE_URL` y "
+        "`SUPABASE_KEY` en `.streamlit/secrets.toml` así:\n\n"
+        "```\n[supabase]\nurl = \"https://tu-proyecto.supabase.co\"\n"
+        "key = \"tu-clave\"\n```"
+    )
+    st.stop()
 
 @st.cache_resource
 def init_supabase():
@@ -124,11 +133,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR DE DISPOSITIVO ANÓNIMO ---
+# --- IDENTIFICADOR DE DISPOSITIVO ANÓNIMO (persistido en la URL) ---
+# BUG IMPORTANTE que tenía el código original: el device_id solo vivía en
+# st.session_state, que se pierde en cuanto se cierra la pestaña o el
+# servidor reinicia la sesión. Eso significaba que cada vez que el usuario
+# volvía a abrir la app, se le creaba un device_id NUEVO y perdía todo su
+# progreso guardado en Supabase, aunque la tabla siguiera llena de filas
+# "huérfanas". Guardándolo también como parámetro de la URL (?uid=...) el
+# progreso sobrevive a recargas y a reaperturas del mismo enlace.
 if "device_id" not in st.session_state:
-    st.session_state["device_id"] = str(uuid.uuid4())
+    uid_en_url = st.query_params.get("uid")
+    st.session_state["device_id"] = uid_en_url if uid_en_url else str(uuid.uuid4())
 
 DEVICE_ID = st.session_state["device_id"]
+st.query_params["uid"] = DEVICE_ID
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
@@ -158,26 +176,30 @@ def cargar_progreso():
         response = supabase.table("usuarios").select("*").eq("device_id", DEVICE_ID).execute()
         if response.data and len(response.data) > 0:
             row = response.data[0]
-            pokedex = {int(k): v for k, v in row.get("pokedex", {}).items()}
-            shinydex = {int(k): v for k, v in row.get("shinydex", {}).items()}
-            racha_max = row.get("racha_maxima", 0)
-            logros = row.get("logros", {})
-            aciertos = row.get("aciertos_totales", 0)
-            fallos = row.get("fallos_totales", 0)
-            monedas = row.get("monedas", 10)
-            entrenador_actual = row.get("entrenador_actual", "Rojo")
-            entrenadores_desbloqueados = row.get("entrenadores_desbloqueados", ["Rojo"])
-            huevos = row.get("huevos", [])
-            cartas_coleccion = row.get("cartas_coleccion", [])
-            companero_id = row.get("companero_id", 25)
-            companero_shiny = row.get("companero_shiny", False)
-            titulo_elegido = row.get("titulo_elegido", "")
-            historia_progreso = row.get("historia_progreso", 1)
-            misiones_diarias = row.get("misiones_diarias", {})
-            ultima_fecha_misiones = row.get("ultima_fecha_misiones", "")
-            ultima_ruleta = row.get("ultima_ruleta", "")
-            medallas_tipos = row.get("medallas_tipos", {})
-            inventario = row.get("inventario", {"revivir": 0})
+            # Usamos "row.get(x) or default" en vez de "row.get(x, default)":
+            # si la columna existe pero está a NULL en la fila, .get()
+            # devuelve None (no el default) y el código original explotaba
+            # al intentar hacer .items() sobre None.
+            pokedex = {int(k): v for k, v in (row.get("pokedex") or {}).items()}
+            shinydex = {int(k): v for k, v in (row.get("shinydex") or {}).items()}
+            racha_max = row.get("racha_maxima") or 0
+            logros = row.get("logros") or {}
+            aciertos = row.get("aciertos_totales") or 0
+            fallos = row.get("fallos_totales") or 0
+            monedas = row.get("monedas") if row.get("monedas") is not None else 10
+            entrenador_actual = row.get("entrenador_actual") or "Rojo"
+            entrenadores_desbloqueados = row.get("entrenadores_desbloqueados") or ["Rojo"]
+            huevos = row.get("huevos") or []
+            cartas_coleccion = row.get("cartas_coleccion") or []
+            companero_id = row.get("companero_id") or 25
+            companero_shiny = row.get("companero_shiny") or False
+            titulo_elegido = row.get("titulo_elegido") or ""
+            historia_progreso = row.get("historia_progreso") or 1
+            misiones_diarias = row.get("misiones_diarias") or {}
+            ultima_fecha_misiones = row.get("ultima_fecha_misiones") or ""
+            ultima_ruleta = row.get("ultima_ruleta") or ""
+            medallas_tipos = row.get("medallas_tipos") or {}
+            inventario = row.get("inventario") or {"revivir": 0}
             return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
     except Exception as e:
         print(f"Error cargando desde Supabase: {e}")
@@ -236,22 +258,29 @@ if "pokedex_capturados" not in st.session_state:
     st.session_state["medallas_tipos"] = med_ini
     st.session_state["inventario"] = inv_ini
 
-if "racha" not in st.session_state: st.session_state["racha"] = 0
-if "puntos" not in st.session_state: st.session_state["puntos"] = 0
-if "derrota" not in st.session_state: st.session_state["derrota"] = False
-if "ultimo_pokemon_fallado" not in st.session_state: st.session_state["ultimo_pokemon_fallado"] = None
-if "en_partida" not in st.session_state: st.session_state["en_partida"] = False
-if "modo_juego" not in st.session_state: st.session_state["modo_juego"] = None
-if "rango_gens" not in st.session_state: st.session_state["rango_gens"] = (1, 151)
-if "vistos_partida" not in st.session_state: st.session_state["vistos_partida"] = set()
-if "ultima_notificacion" not in st.session_state: st.session_state["ultima_notificacion"] = None
-if "carta_recien_abierta" not in st.session_state: st.session_state["carta_recien_abierta"] = None
-if "mostrar_consola_trucos" not in st.session_state: st.session_state["mostrar_consola_trucos"] = False
-if "premio_ruleta_reclamado_reciente" not in st.session_state: st.session_state["premio_ruleta_reclamado_reciente"] = None
-
-if "en_historia" not in st.session_state: st.session_state["en_historia"] = False
-if "historia_vidas" not in st.session_state: st.session_state["historia_vidas"] = 3
-if "modo_supervivencia" not in st.session_state: st.session_state["modo_supervivencia"] = False
+# Valores por defecto del estado de sesión "efímero" (no persistido en
+# Supabase). Antes eran 15 líneas de "if x not in state: state[x] = ...";
+# un diccionario + bucle es más fácil de mantener si añades más adelante.
+_VALORES_POR_DEFECTO = {
+    "racha": 0,
+    "puntos": 0,
+    "derrota": False,
+    "ultimo_pokemon_fallado": None,
+    "en_partida": False,
+    "modo_juego": None,
+    "rango_gens": (1, 151),
+    "vistos_partida": set(),
+    "ultima_notificacion": None,
+    "carta_recien_abierta": None,
+    "mostrar_consola_trucos": False,
+    "premio_ruleta_reclamado_reciente": None,
+    "en_historia": False,
+    "historia_vidas": 3,
+    "modo_supervivencia": False,
+}
+for _clave, _valor in _VALORES_POR_DEFECTO.items():
+    if _clave not in st.session_state:
+        st.session_state[_clave] = _valor
 
 hoy_str = str(datetime.date.today())
 if st.session_state["ultima_fecha_misiones"] != hoy_str:
@@ -676,7 +705,8 @@ with tab_jugar:
                             if st.session_state["misiones_diarias"]["aciertos_5"]["actual"] >= st.session_state["misiones_diarias"]["aciertos_5"]["meta"]:
                                 st.session_state["misiones_diarias"]["aciertos_5"]["completada"] = True
                                 st.session_state["monedas"] += st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
-                                agregar_notificacion("🎯 ¡Misión cumplida! +50 Poké-Coins", "success")
+                                recompensa_mision = st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
+                                agregar_notificacion(f"🎯 ¡Misión cumplida! +{recompensa_mision} Poké-Coins", "success")
 
                         if st.session_state["racha"] > st.session_state["racha_maxima"]:
                             st.session_state["racha_maxima"] = st.session_state["racha"]
@@ -691,6 +721,13 @@ with tab_jugar:
                         st.session_state["ultimo_pokemon_fallado"] = poke
                         st.session_state["derrota"] = True
                         st.rerun()
+        else:
+            # Antes, si la PokeAPI fallaba (red caída, rate limit, etc.)
+            # la pantalla se quedaba completamente en blanco sin avisar.
+            st.error("⚠️ No se pudo cargar un Pokémon (falló la conexión con PokeAPI). Inténtalo de nuevo.")
+            if st.button("🔄 Reintentar", use_container_width=True):
+                st.session_state["pokemon_actual"] = obtener_pokemon_by_rango(r_min, r_max, modo_actual)
+                st.rerun()
 
         st.divider()
         if st.button("🏠 Salir al Menú", use_container_width=True):
@@ -790,6 +827,12 @@ with tab_historia:
                             r_max_val = 1025 if is_sup else 386
                             st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
                             st.rerun()
+        else:
+            st.error("⚠️ No se pudo cargar un Pokémon (falló la conexión con PokeAPI). Inténtalo de nuevo.")
+            if st.button("🔄 Reintentar Carga", use_container_width=True):
+                r_max_val = 1025 if is_sup else 386
+                st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
+                st.rerun()
         
         st.divider()
         if st.button("🚪 Abandonar Historia", use_container_width=True):
@@ -955,8 +998,12 @@ with tab_safari:
                     res_sp = obtener_datos_especie(pid_rand)
                     if res_sp:
                         nombre_limpio = limpiar_nombre_pokemon(res_sp["name"])
+                        # BUG original: guardaba "gen": 1 fijo para
+                        # cualquier Pokémon capturado. Ahora se calcula
+                        # la generación real a partir de la especie.
+                        gen_capturado = int(res_sp["generation"]["url"].split("/")[-2])
                         nombres_atrapados.append(nombre_limpio)
-                        st.session_state["pokedex_capturados"][pid_rand] = {"nombre": nombre_limpio, "gen": 1}
+                        st.session_state["pokedex_capturados"][pid_rand] = {"nombre": nombre_limpio, "gen": gen_capturado}
             
             guardar_progreso()
             st.success(f"🌟 ¡Sesión Safari finalizada! Encuentros: {encontrados} | ¡Atrapaste {atrapados} Pokémon: {', '.join(nombres_atrapados) if nombres_atrapados else 'Ninguno'}!")
