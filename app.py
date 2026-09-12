@@ -133,42 +133,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- IDENTIFICADOR DE DISPOSITIVO ANÓNIMO (persistido en localStorage) ---
-# El parámetro de la URL (?uid=...) por sí solo es frágil: si cierras la
-# pestaña y vuelves a entrar por la URL "limpia" (sin ese parámetro), se
-# generaba un device_id NUEVO y tu progreso anterior parecía haber
-# desaparecido, aunque seguía guardado en Supabase bajo el id antiguo.
-# Ahora el id también se guarda en el localStorage del navegador, que
-# sobrevive a cerrar pestañas/navegador (solo se pierde si borras datos de
-# navegación del sitio o entras desde otro navegador/incógnito distinto).
+# --- IDENTIFICADOR DE PARTIDA (código introducido por el usuario) ---
+# Se probó primero a persistir un id automáticamente vía la URL y luego
+# vía localStorage con un truco de JavaScript, pero ese segundo método
+# requiere que un <script> dentro de un iframe redirija la ventana
+# principal del navegador, y Streamlit Community Cloud sandboxea esos
+# iframes y bloquea esa redirección: la app se quedaba colgada en negro
+# para siempre. La solución robusta (funciona igual en local y en la
+# nube) es pedirle al usuario un código simple: si es la primera vez, se
+# le genera uno nuevo y se le muestra para que lo guarde; si ya jugó
+# antes, lo introduce y recupera su partida desde Supabase.
+def _generar_codigo_partida() -> str:
+    return uuid.uuid4().hex[:8].upper()
+
 if "device_id" not in st.session_state:
     uid_en_url = st.query_params.get("uid")
     if uid_en_url:
         st.session_state["device_id"] = uid_en_url
     else:
-        components.html("""
-        <script>
-        (function() {
-            const clave = "pokemon_quiz_device_id";
-            let id = window.localStorage.getItem(clave);
-            if (!id) {
-                id = crypto.randomUUID();
-                window.localStorage.setItem(clave, id);
-            }
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set("uid", id);
-            window.parent.location.replace(url.toString());
-        })();
-        </script>
-        """, height=0)
+        st.title("🎮 Pokémon Quiz Arcade Ultimate")
+        st.subheader("🪪 Identifícate para empezar")
+        st.write("Tu progreso se guarda con un **código de partida**. Guárdalo para poder recuperarlo desde cualquier dispositivo.")
+        st.divider()
+
+        codigo_introducido = st.text_input(
+            "¿Ya tienes un código de partida? Introdúcelo aquí:",
+            placeholder="Ej: A1B2C3D4",
+            key="input_codigo_partida",
+        ).strip().upper()
+
+        col_id1, col_id2 = st.columns(2)
+        with col_id1:
+            if st.button("▶️ Continuar con este código", use_container_width=True, disabled=not codigo_introducido):
+                st.session_state["device_id"] = codigo_introducido
+                st.query_params["uid"] = codigo_introducido
+                st.rerun()
+        with col_id2:
+            if st.button("✨ Soy nuevo/a, crear partida", use_container_width=True, type="primary"):
+                nuevo_codigo = _generar_codigo_partida()
+                st.session_state["device_id"] = nuevo_codigo
+                st.query_params["uid"] = nuevo_codigo
+                st.rerun()
+
         st.stop()
 
 DEVICE_ID = st.session_state["device_id"]
 st.query_params["uid"] = DEVICE_ID
 
-# Panel de depuración temporal: quítalo cuando confirmes que todo funciona.
 with st.sidebar:
-    st.caption(f"🔧 Debug — device_id: `{DEVICE_ID}`")
+    st.caption(f"🪪 Tu código de partida: `{DEVICE_ID}`")
+    st.caption("Guárdalo para recuperar tu progreso desde otro dispositivo.")
 
 # --- TABLA DE RANGOS DE PROGRESIÓN ---
 RANGOS_PROGRESION = [
