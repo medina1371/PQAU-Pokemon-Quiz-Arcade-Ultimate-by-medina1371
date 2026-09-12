@@ -202,7 +202,10 @@ def cargar_progreso():
             inventario = row.get("inventario") or {"revivir": 0}
             return pokedex, shinydex, racha_max, logros, aciertos, fallos, monedas, entrenador_actual, entrenadores_desbloqueados, huevos, cartas_coleccion, companero_id, companero_shiny, titulo_elegido, historia_progreso, misiones_diarias, ultima_fecha_misiones, ultima_ruleta, medallas_tipos, inventario
     except Exception as e:
-        print(f"Error cargando desde Supabase: {e}")
+        # Antes esto solo hacía print() (va a los logs del servidor, que
+        # normalmente no ves). Lo mostramos en pantalla para poder
+        # diagnosticar por qué no carga/guarda el progreso.
+        st.sidebar.error(f"🔴 Error CARGANDO progreso de Supabase:\n\n{e}")
         
     return {}, {}, 0, {}, 0, 0, 10, "Rojo", ["Rojo"], [], [], 25, False, "", 1, {}, "", "", {}, {"revivir": 0}
 
@@ -233,7 +236,7 @@ def guardar_progreso():
     try:
         supabase.table("usuarios").upsert(datos, on_conflict="device_id").execute()
     except Exception as e:
-        print(f"Error guardando en Supabase: {e}")
+        st.sidebar.error(f"🔴 Error GUARDANDO progreso en Supabase:\n\n{e}")
 
 if "pokedex_capturados" not in st.session_state:
     p_ini, s_ini, rm_ini, l_ini, ac_ini, fa_ini, mon_ini, ent_ini, ents_ini, hue_ini, car_ini, comp_id_ini, comp_sh_ini, tit_ini, hist_ini, mis_ini, f_mis_ini, u_rul_ini, med_ini, inv_ini = cargar_progreso()
