@@ -52,8 +52,11 @@ st.markdown("""
         border-radius: 14px !important;
         font-weight: 800 !important;
         font-size: 15px !important;
-        padding: 12px 20px !important;
+        padding: 12px 14px !important;
         width: 100% !important;
+        min-height: 52px !important;
+        white-space: normal !important;
+        line-height: 1.25 !important;
         margin-bottom: 10px !important;
         background: linear-gradient(135deg, #2b32b2 0%, #14153b 100%) !important;
         color: #ffffff !important;
@@ -343,29 +346,15 @@ if st.session_state["ultima_fecha_misiones"] != hoy_str:
     }
     guardar_progreso()
 
-components.html("""
-<script>
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'q' || e.key === 'Q') {
-            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-            const btn = parent.document.getElementById('hidden_trigger_btn');
-            if (btn) { btn.click(); }
-        }
-    });
-</script>
-""", height=0)
-
-st.markdown("""
-<style>
-    div[data-testid="stHorizontalBlock"] > div:has(#hidden_trigger_btn) {
-        display: none !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-if st.button("TrigQ", key="hidden_trigger_btn"):
-    st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
-    st.rerun()
+# La consola de trucos se abre con un botón discreto en la barra lateral
+# en vez de un atajo de teclado. El truco anterior (JavaScript buscando un
+# botón por su "id" en el HTML) nunca funcionaba de verdad: Streamlit no
+# asigna ese id literal a los botones, así que el "click" nunca encontraba
+# nada. Esto es menos "secreto" pero SÍ funciona siempre.
+with st.sidebar:
+    if st.button("💻", key="btn_abrir_consola", help="???"):
+        st.session_state["mostrar_consola_trucos"] = not st.session_state["mostrar_consola_trucos"]
+        st.rerun()
 
 ENTRENADORES = {
     "Rojo": {"nombre": "Rojo", "avatar_url": "https://play.pokemonshowdown.com/sprites/trainers/red.png", "costo": 0, "descripcion": "El campeón silencioso de Kanto.", "trait": "Gratis - Ganancia estándar", "bonus_monedas": 0},
@@ -1010,58 +999,63 @@ with tab_jugar:
             else:
                 st.subheader("¿Cuál de estos Pokémon es el correcto?")
 
-            # Opciones en grid horizontal 2x2 en vez de una lista vertical.
+            # Opciones en grid horizontal 2x2. Se construye fila a fila
+            # (2 columnas nuevas por cada par de opciones) en vez de una
+            # lista combinada de columnas ya creadas: es el patrón que
+            # recomienda la documentación de Streamlit y evita el
+            # solapamiento que daba el otro enfoque.
             opciones_lista = poke.get("opciones", [])[:4]
-            fila_op1 = st.columns(2)
-            fila_op2 = st.columns(2)
-            columnas_opciones = fila_op1 + fila_op2
-            for idx, (opc_item, col_op) in enumerate(zip(opciones_lista, columnas_opciones)):
-                opc_nombre = opc_item["nombre"]
-                with col_op:
-                    boton_pulsado = st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{idx}")
-                if boton_pulsado:
-                    if opc_nombre == poke["respuesta_correcta"]:
-                        st.session_state["puntos"] += 1
-                        st.session_state["racha"] += 1
-                        st.session_state["aciertos_totales"] += 1
-                        st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
-                        if poke["shiny"]:
-                            st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
-                        if modo_actual == "evolucion":
-                            st.session_state["aciertos_evolucion_total"] += 1
-                        
-                        for t_elem in poke["tipos"]:
-                            if t_elem not in st.session_state["medallas_tipos"]:
-                                st.session_state["medallas_tipos"][t_elem] = 0
-                            st.session_state["medallas_tipos"][t_elem] += 1
-                            if st.session_state["medallas_tipos"][t_elem] == 50:
-                                agregar_notificacion(f"🏅 ¡LOGRO ELEMENTAL! ¡Conseguiste la Medalla de {t_elem} por 50 aciertos!", "warning")
-
-                        ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
-                        st.session_state["monedas"] += ganancia_monedas
-                        avanzar_huevos()
-                        
-                        if "aciertos_5" in st.session_state["misiones_diarias"] and not st.session_state["misiones_diarias"]["aciertos_5"]["completada"]:
-                            st.session_state["misiones_diarias"]["aciertos_5"]["actual"] += 1
-                            if st.session_state["misiones_diarias"]["aciertos_5"]["actual"] >= st.session_state["misiones_diarias"]["aciertos_5"]["meta"]:
-                                st.session_state["misiones_diarias"]["aciertos_5"]["completada"] = True
-                                st.session_state["monedas"] += st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
-                                recompensa_mision = st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
-                                agregar_notificacion(f"🎯 ¡Misión cumplida! +{recompensa_mision} Poké-Coins", "success")
-
-                        if st.session_state["racha"] > st.session_state["racha_maxima"]:
-                            st.session_state["racha_maxima"] = st.session_state["racha"]
-                        
-                        guardar_progreso()
-                        agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
-                        st.session_state["pokemon_actual"] = obtener_siguiente_pokemon_partida(modo_actual, r_min, r_max)
-                        st.rerun()
-                    else:
-                        st.session_state["fallos_totales"] += 1
-                        guardar_progreso()
-                        st.session_state["ultimo_pokemon_fallado"] = poke
-                        st.session_state["derrota"] = True
-                        st.rerun()
+            for fila_inicio in range(0, len(opciones_lista), 2):
+                par_opciones = opciones_lista[fila_inicio:fila_inicio + 2]
+                cols_fila = st.columns(2)
+                for col_idx, opc_item in enumerate(par_opciones):
+                    idx = fila_inicio + col_idx
+                    opc_nombre = opc_item["nombre"]
+                    with cols_fila[col_idx]:
+                        boton_pulsado = st.button(f"{opc_nombre}", use_container_width=True, key=f"btn_opc_{poke['id']}_{idx}")
+                    if boton_pulsado:
+                        if opc_nombre == poke["respuesta_correcta"]:
+                            st.session_state["puntos"] += 1
+                            st.session_state["racha"] += 1
+                            st.session_state["aciertos_totales"] += 1
+                            st.session_state["pokedex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
+                            if poke["shiny"]:
+                                st.session_state["shinydex_capturados"][poke["id"]] = {"nombre": poke["nombre"], "gen": poke["gen"]}
+                            if modo_actual == "evolucion":
+                                st.session_state["aciertos_evolucion_total"] += 1
+                            
+                            for t_elem in poke["tipos"]:
+                                if t_elem not in st.session_state["medallas_tipos"]:
+                                    st.session_state["medallas_tipos"][t_elem] = 0
+                                st.session_state["medallas_tipos"][t_elem] += 1
+                                if st.session_state["medallas_tipos"][t_elem] == 50:
+                                    agregar_notificacion(f"🏅 ¡LOGRO ELEMENTAL! ¡Conseguiste la Medalla de {t_elem} por 50 aciertos!", "warning")
+    
+                            ganancia_monedas = 4 + ent_actual.get("bonus_monedas", 0)
+                            st.session_state["monedas"] += ganancia_monedas
+                            avanzar_huevos()
+                            
+                            if "aciertos_5" in st.session_state["misiones_diarias"] and not st.session_state["misiones_diarias"]["aciertos_5"]["completada"]:
+                                st.session_state["misiones_diarias"]["aciertos_5"]["actual"] += 1
+                                if st.session_state["misiones_diarias"]["aciertos_5"]["actual"] >= st.session_state["misiones_diarias"]["aciertos_5"]["meta"]:
+                                    st.session_state["misiones_diarias"]["aciertos_5"]["completada"] = True
+                                    st.session_state["monedas"] += st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
+                                    recompensa_mision = st.session_state["misiones_diarias"]["aciertos_5"]["recompensa"]
+                                    agregar_notificacion(f"🎯 ¡Misión cumplida! +{recompensa_mision} Poké-Coins", "success")
+    
+                            if st.session_state["racha"] > st.session_state["racha_maxima"]:
+                                st.session_state["racha_maxima"] = st.session_state["racha"]
+                            
+                            guardar_progreso()
+                            agregar_notificacion(f"¡Correcto! (+{ganancia_monedas} Poké-Coins)", "success")
+                            st.session_state["pokemon_actual"] = obtener_siguiente_pokemon_partida(modo_actual, r_min, r_max)
+                            st.rerun()
+                        else:
+                            st.session_state["fallos_totales"] += 1
+                            guardar_progreso()
+                            st.session_state["ultimo_pokemon_fallado"] = poke
+                            st.session_state["derrota"] = True
+                            st.rerun()
         else:
             # Antes, si la PokeAPI fallaba (red caída, rate limit, etc.)
             # la pantalla se quedaba completamente en blanco sin avisar.
@@ -1140,40 +1134,41 @@ with tab_historia:
             
             st.write("Elige la respuesta correcta:")
             opciones_hist = poke_h["opciones"][:4]
-            fila_h1 = st.columns(2)
-            fila_h2 = st.columns(2)
-            columnas_hist = fila_h1 + fila_h2
-            for idx, (opc_item, col_h) in enumerate(zip(opciones_hist, columnas_hist)):
-                opc_nombre = opc_item["nombre"]
-                with col_h:
-                    boton_hist_pulsado = st.button(opc_nombre, key=f"hist_opc_{idx}", use_container_width=True)
-                if boton_hist_pulsado:
-                    if opc_nombre == poke_h["respuesta_correcta"]:
-                        if is_sup:
-                            st.session_state["racha_supervivencia"] += 1
-                            st.session_state["monedas"] += 15
-                            st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, 1025, "clasico")
-                            st.success("🎯 ¡Acierto en supervivencia! +15 Poké-Coins")
-                            st.rerun()
+            for fila_inicio_h in range(0, len(opciones_hist), 2):
+                par_opciones_h = opciones_hist[fila_inicio_h:fila_inicio_h + 2]
+                cols_fila_h = st.columns(2)
+                for col_idx_h, opc_item in enumerate(par_opciones_h):
+                    idx = fila_inicio_h + col_idx_h
+                    opc_nombre = opc_item["nombre"]
+                    with cols_fila_h[col_idx_h]:
+                        boton_hist_pulsado = st.button(opc_nombre, key=f"hist_opc_{poke_h['id']}_{idx}", use_container_width=True)
+                    if boton_hist_pulsado:
+                        if opc_nombre == poke_h["respuesta_correcta"]:
+                            if is_sup:
+                                st.session_state["racha_supervivencia"] += 1
+                                st.session_state["monedas"] += 15
+                                st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, 1025, "clasico")
+                                st.success("🎯 ¡Acierto en supervivencia! +15 Poké-Coins")
+                                st.rerun()
+                            else:
+                                st.session_state["historia_progreso"] += 1
+                                st.session_state["monedas"] += gym_activo["recompensa"]
+                                st.session_state["en_historia"] = False
+                                guardar_progreso()
+                                st.success(f"🎉 ¡Gimnasio superado con éxito!")
+                                st.rerun()
                         else:
-                            st.session_state["historia_progreso"] += 1
-                            st.session_state["monedas"] += gym_activo["recompensa"]
-                            st.session_state["en_historia"] = False
-                            guardar_progreso()
-                            st.success(f"🎉 ¡Gimnasio superado con éxito!")
-                            st.rerun()
-                    else:
-                        st.session_state["historia_vidas"] -= 1
-                        if st.session_state["historia_vidas"] <= 0:
-                            st.session_state["en_historia"] = False
-                            st.session_state["historia_vidas"] = 3
-                            st.error("Te has quedado sin vidas. ¡Vuelves al menú principal!")
-                            st.rerun()
-                        else:
-                            st.warning(f"Respuesta incorrecta (Te quedan {st.session_state['historia_vidas']} vidas)")
-                            r_max_val = 1025 if is_sup else 386
-                            st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
-                            st.rerun()
+                            st.session_state["historia_vidas"] -= 1
+                            if st.session_state["historia_vidas"] <= 0:
+                                st.session_state["en_historia"] = False
+                                st.session_state["historia_vidas"] = 3
+                                st.error("Te has quedado sin vidas. ¡Vuelves al menú principal!")
+                                st.rerun()
+                            else:
+                                st.warning(f"Respuesta incorrecta (Te quedan {st.session_state['historia_vidas']} vidas)")
+                                r_max_val = 1025 if is_sup else 386
+                                st.session_state["pokemon_historia"] = obtener_pokemon_by_rango(1, r_max_val, "clasico")
+                                st.rerun()
         else:
             st.error("⚠️ No se pudo cargar un Pokémon (falló la conexión con PokeAPI). Inténtalo de nuevo.")
             if st.button("🔄 Reintentar Carga", use_container_width=True):
