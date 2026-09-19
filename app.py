@@ -26,7 +26,17 @@ ROOT = Path(__file__).parent
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://pokemon-quiz-arcade.onrender.com").rstrip("/")
 app = FastAPI(title="Pokémon Quiz Arcade", version="2.0.0", servers=[{"url": PUBLIC_BASE_URL}])
 app.add_middleware(CORSMiddleware, allow_origins=[PUBLIC_BASE_URL, "http://127.0.0.1:8000", "http://localhost:8000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+STATIC_DIR = next((candidate for candidate in [ROOT / "static", ROOT / "pokemon_arcade" / "static", ROOT / "outputs" / "pokemon_arcade" / "static"] if candidate.is_dir()), ROOT / "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.middleware("http")
+async def disable_frontend_cache(request, call_next):
+    response = await call_next(request)
+    if request.url.path in {"/", "/static/index.html"}:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 STARTING_PLAYER = {"coins": 100, "correct": 0, "failures": 0, "streak": 0, "best_streak": 0, "shinies_seen": 0, "wins": 0, "losses": 0, "xp": 0, "level": 1, "achievements": {}, "favorites": [], "team": [], "cosmetics": ["classic"], "active_cosmetic": "classic", "missions_claimed": {}, "pokedex": {}, "shinydex": {}}
 LOCAL_PLAYERS: dict[str, dict[str, Any]] = {}
@@ -193,7 +203,7 @@ class CasinoBet(BaseModel):
 
 @app.get("/")
 def home() -> FileResponse:
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.post("/api/players")
@@ -210,13 +220,32 @@ def get_player(code: str) -> dict[str, Any]:
     return {"code": pid, "state": load_player(pid)}
 
 
+@app.post("/api/session/reset")
+def reset_session(code: str = Query(...)) -> dict[str, Any]:
+    """Finaliza la partida actual sin borrar estadísticas acumuladas."""
+    pid = player_id(code)
+    state = load_player(pid)
+    state["streak"] = 0
+    save_player(pid, state)
+    return {"state": state}
+
+
 @app.get("/api/quiz/question")
 async def quiz_question(
     code: str = Query(...),
     generation: int = Query(1, ge=1, le=9),
+    generations: str = Query(""),
     mode: str = Query("classic", pattern="^(classic|type|generation|evolution)$"),
 ) -> dict[str, Any]:
     pid = player_id(code)
+    if generations:
+        selected = sorted({int(value) for value in generations.split(",") if value.isdigit() and 1 <= int(value) <= 9})
+        if len(selected) < 2:
+            raise HTTPException(400, "Selecciona al menos 2 generaciones para jugar.")
+        generation = random.choice(selected)
+    else:
+        # Compatibilidad con clientes antiguos: nunca volver a limitar el juego a Kanto.
+        generation = random.choice(list(GENERATION_RANGES))
     low, high = GENERATION_RANGES[generation]
     pokemon_id = random.randint(low, high)
     async with httpx.AsyncClient(timeout=8) as client:
@@ -236,10 +265,10 @@ async def quiz_question(
             while len(options) < 4:
                 distractor = (await client.get(f"https://pokeapi.co/api/v2/pokemon/{random.randint(low, high)}")).json().get("name", "Pokémon").capitalize()
                 options.add(distractor)
-            return {"mode": mode, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": f"¿En qué evoluciona {pokemon_name}?", "options": sorted(options)}
+            return {"mode": mode, "generation": generation, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": f"¿En qué evoluciona {pokemon_name}?", "options": sorted(options)}
         if mode == "generation":
             answer = next(label for gen, label in GENERATION_LABELS.items() if GENERATION_RANGES[gen][0] <= pokemon_id <= GENERATION_RANGES[gen][1])
-            return {"mode": mode, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": "¿A qué generación pertenece este Pokémon?", "options": list(GENERATION_LABELS.values())}
+            return {"mode": mode, "generation": generation, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": "¿A qué generación pertenece este Pokémon?", "options": list(GENERATION_LABELS.values())}
         if mode == "type":
             types = " / ".join(t["type"]["name"].capitalize() for t in data.get("types", []))
             names = {pokemon_name}
@@ -248,13 +277,13 @@ async def quiz_question(
                 distractor = await client.get(f"https://pokeapi.co/api/v2/pokemon/{distractor_id}")
                 if distractor.status_code == 200:
                     names.add(distractor.json()["name"].capitalize())
-            return {"mode": mode, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": f"Tipo: {types}. ¿Qué Pokémon es?", "options": sorted(names)}
+            return {"mode": mode, "generation": generation, "pokemon_id": pokemon_id, "image": image, "shiny": question_shiny(pid, mode, pokemon_id), "prompt": f"Tipo: {types}. ¿Qué Pokémon es?", "options": sorted(names)}
     names = [s["name"] for s in data.get("forms", [])]
     answer = names[0].capitalize() if names else data["name"].capitalize()
     options = {answer}
     while len(options) < 4:
         options.add((await _pokemon_name(client, random.randint(low, high))))
-    return {"mode": "classic", "pokemon_id": pokemon_id, "image": data["sprites"]["front_default"], "shiny": question_shiny(pid, "classic", pokemon_id), "prompt": "¿Cómo se llama este Pokémon?", "options": sorted(options)}
+    return {"mode": "classic", "generation": generation, "pokemon_id": pokemon_id, "image": data["sprites"]["front_default"], "shiny": question_shiny(pid, "classic", pokemon_id), "prompt": "¿Cómo se llama este Pokémon?", "options": sorted(options)}
 
 
 async def next_evolution(client: httpx.AsyncClient, chain_url: str, current: str) -> str | None:
