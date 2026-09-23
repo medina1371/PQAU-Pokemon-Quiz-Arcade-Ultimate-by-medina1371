@@ -6,11 +6,13 @@ import random
 import re
 import secrets
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -20,6 +22,7 @@ except ImportError:  # pragma: no cover
     create_client = None
 
 VERCEL_URL = os.getenv("VERCEL_URL", "").strip()
+ON_VERCEL = bool(os.getenv("VERCEL"))
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 if not PUBLIC_BASE_URL:
     PUBLIC_BASE_URL = f"https://{VERCEL_URL}" if VERCEL_URL else "http://127.0.0.1:8000"
@@ -39,6 +42,12 @@ async def disable_frontend_cache(request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
     return response
+
+
+if not ON_VERCEL:
+    @app.get("/", include_in_schema=False)
+    def local_home() -> FileResponse:
+        return FileResponse(Path(__file__).parent / "public" / "index.html")
 
 STARTING_PLAYER = {"coins": 100, "correct": 0, "failures": 0, "streak": 0, "best_streak": 0, "shinies_seen": 0, "wins": 0, "losses": 0, "xp": 0, "level": 1, "achievements": {}, "favorites": [], "team": [], "cosmetics": ["classic"], "active_cosmetic": "classic", "missions_claimed": {}, "pokedex": {}, "shinydex": {}}
 LOCAL_PLAYERS: dict[str, dict[str, Any]] = {}
