@@ -4,16 +4,6 @@ alter table usuarios add column if not exists casino_played integer not null def
 alter table usuarios add column if not exists casino_date text not null default '';
 alter table usuarios add column if not exists wins integer not null default 0;
 alter table usuarios add column if not exists losses integer not null default 0;
-alter table usuarios add column if not exists fallos_totales integer not null default 0;
-alter table usuarios add column if not exists shinies_seen integer not null default 0;
-alter table usuarios add column if not exists xp integer not null default 0;
-alter table usuarios add column if not exists level integer not null default 1;
-alter table usuarios add column if not exists achievements jsonb not null default '{}'::jsonb;
-alter table usuarios add column if not exists favorites jsonb not null default '[]'::jsonb;
-alter table usuarios add column if not exists team jsonb not null default '[]'::jsonb;
-alter table usuarios add column if not exists cosmetics jsonb not null default '["classic"]'::jsonb;
-alter table usuarios add column if not exists active_cosmetic text not null default 'classic';
-alter table usuarios add column if not exists missions_claimed jsonb not null default '{}'::jsonb;
 
 -- Recomendado para producción: historial auditable de movimientos.
 create table if not exists casino_movimientos (
