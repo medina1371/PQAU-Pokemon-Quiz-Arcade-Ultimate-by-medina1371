@@ -6,14 +6,11 @@ import random
 import re
 import secrets
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 try:
@@ -22,7 +19,6 @@ except ImportError:  # pragma: no cover
     Client = Any
     create_client = None
 
-ROOT = Path(__file__).parent
 VERCEL_URL = os.getenv("VERCEL_URL", "").strip()
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 if not PUBLIC_BASE_URL:
@@ -36,22 +32,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-STATIC_DIR = next(
-    (
-        candidate
-        for candidate in [
-            ROOT / "static",
-            ROOT / "public",
-            ROOT / "pokemon_arcade" / "static",
-            ROOT / "outputs" / "pokemon_arcade" / "static",
-        ]
-        if candidate.is_dir()
-    ),
-    ROOT / "static",
-)
-app.mount("/static", StaticFiles(directory=STATIC_DIR, check_dir=False), name="static")
-
-
 @app.middleware("http")
 async def disable_frontend_cache(request, call_next):
     response = await call_next(request)
@@ -221,11 +201,6 @@ class CasinoBet(BaseModel):
     game: str = Field(pattern="^(slots|roulette)$")
     bet: int = Field(ge=BET_MIN, le=BET_MAX)
     choice: int | None = Field(default=None, ge=0, le=36)
-
-
-@app.get("/")
-def home() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.post("/api/players")
