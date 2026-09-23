@@ -2,7 +2,21 @@
 
 Migración inicial de Streamlit a FastAPI + HTML/CSS/JavaScript.
 
-## Migración recomendada: Render
+## Despliegue recomendado: Vercel
+
+Esta versión está preparada para Vercel. Vercel detecta `app.py` como una aplicación FastAPI y ejecuta el backend como una función Python. El archivo `vercel.json` envía las rutas al backend y `app.py` mantiene disponible `static/index.html`.
+
+1. Sube el contenido de esta carpeta a un repositorio de GitHub. No subas `.venv`.
+2. Entra en Vercel, pulsa **Add New → Project** e importa el repositorio.
+3. Pulsa **Deploy** sin añadir Build Command ni Output Directory.
+4. En **Settings → Environment Variables**, añade `SUPABASE_URL` y `SUPABASE_KEY` si vas a guardar los datos de los jugadores.
+5. Si Vercel te asigna una URL personalizada, añade también `PUBLIC_BASE_URL` con esa URL y vuelve a desplegar.
+
+La aplicación detecta automáticamente `VERCEL_URL`, configura CORS para los dominios `vercel.app` y conserva la configuración local con Uvicorn. Vercel limita las funciones del plan Hobby a proyectos personales y aplica límites de tiempo/uso; para este juego pequeño debería ser suficiente.
+
+Guía oficial: [FastAPI en Vercel](https://vercel.com/docs/frameworks/backend/fastapi) · [Plan Hobby](https://vercel.com/docs/plans/hobby)
+
+## Migración anterior: Render
 
 El destino elegido es Render en el plan **Free**. El repositorio incluye `.python-version` con Python 3.13 para evitar que Render intente compilar `pydantic-core` con Python 3.14. El nombre de servicio propuesto es `pokemon-quiz-arcade`, por lo que Render intentará asignar `https://pokemon-quiz-arcade.onrender.com`. La disponibilidad exacta del subdominio se confirma al crear el servicio; si Render asigna otro, cambia `PUBLIC_BASE_URL` por la URL real.
 

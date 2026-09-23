@@ -23,11 +23,33 @@ except ImportError:  # pragma: no cover
     create_client = None
 
 ROOT = Path(__file__).parent
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://pokemon-quiz-arcade.onrender.com").rstrip("/")
+VERCEL_URL = os.getenv("VERCEL_URL", "").strip()
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+if not PUBLIC_BASE_URL:
+    PUBLIC_BASE_URL = f"https://{VERCEL_URL}" if VERCEL_URL else "http://127.0.0.1:8000"
 app = FastAPI(title="Pokémon Quiz Arcade", version="2.0.0", servers=[{"url": PUBLIC_BASE_URL}])
-app.add_middleware(CORSMiddleware, allow_origins=[PUBLIC_BASE_URL, "http://127.0.0.1:8000", "http://localhost:8000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-STATIC_DIR = next((candidate for candidate in [ROOT / "static", ROOT / "pokemon_arcade" / "static", ROOT / "outputs" / "pokemon_arcade" / "static"] if candidate.is_dir()), ROOT / "static")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[PUBLIC_BASE_URL, "http://127.0.0.1:8000", "http://localhost:8000"],
+    allow_origin_regex=r"^https://([a-z0-9-]+\.)?vercel\.app$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+STATIC_DIR = next(
+    (
+        candidate
+        for candidate in [
+            ROOT / "static",
+            ROOT / "public",
+            ROOT / "pokemon_arcade" / "static",
+            ROOT / "outputs" / "pokemon_arcade" / "static",
+        ]
+        if candidate.is_dir()
+    ),
+    ROOT / "static",
+)
+app.mount("/static", StaticFiles(directory=STATIC_DIR, check_dir=False), name="static")
 
 
 @app.middleware("http")
